@@ -81,6 +81,8 @@
             "qtVersion": 6
         }
     },
-    "name": "media-playlist-source",
-    "version": "0.0.5"
+    "name": "obs-plugintemplate",
+    "version": "1.0.0",
+    "author": "Your Name Here",
+    "email": "me@mymailhost.com"
 }
