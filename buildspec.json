@@ -81,6 +81,6 @@
             "qtVersion": 6
         }
     },
-    "name": "obs-plugintemplate",
+    "name": "media-playlist-source",
     "version": "1.0.0"
 }
