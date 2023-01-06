@@ -111,7 +111,6 @@ static void free_files(struct darray *array)
 	da_free(files);
 }
 
-
 static void set_media_state(void *data, enum obs_media_state state)
 {
 	struct media_playlist_source *mps = data;
@@ -121,7 +120,31 @@ static void set_media_state(void *data, enum obs_media_state state)
 static enum obs_media_state mps_get_state(void *data)
 {
 	struct media_playlist_source *mps = data;
-	return mps->state;
+	enum obs_media_state media_state = obs_source_media_get_state(
+		mps->current_media_source);
+	UNUSED_PARAMETER(mps);
+	return media_state;
+}
+
+static int64_t mps_get_duration(void *data)
+{
+	struct media_playlist_source *mps = data;
+	
+	return obs_source_media_get_duration(mps->current_media_source);
+}
+
+static int64_t mps_get_time(void *data)
+{
+	struct media_playlist_source *mps = data;
+
+	return obs_source_media_get_time(mps->current_media_source);
+}
+
+static void mps_set_time(void *data, int64_t ms)
+{
+	struct media_playlist_source *mps = data;
+
+	obs_source_media_set_time(mps->current_media_source, ms);
 }
 
 static void play_pause_hotkey(void *data, obs_hotkey_id id,
@@ -223,8 +246,17 @@ static void mps_playlist_next(void *data)
 {
 	struct media_playlist_source *mps = data;
 
+	if (mps->current_media_index < mps->files.num) {
+		++mps->current_media_index;
+	} else if (mps->loop) {
+		mps->current_media_index = 0;
+	} else {
+		return;
+	}
+
 	obs_data_t *settings = obs_data_create();
-	obs_data_set_string(settings, "local_file", mps->files.array[++mps->current_media_index].path);
+	obs_data_set_string(settings, "local_file",
+			    mps->files.array[mps->current_media_index].path);
 	obs_source_update(mps->current_media_source, settings);
 	obs_data_release(settings);
 }
@@ -233,7 +265,8 @@ static void mps_playlist_prev(void *data)
 {
 	struct media_playlist_source *mps = data;
 
-	if (mps->current_media_index > 0) { // size_t is unsigned, don't check if less than 0
+	if (mps->current_media_index >
+	    0) { // size_t is unsigned, don't check if less than 0
 		--mps->current_media_index;
 	} else if (mps->loop) {
 		mps->current_media_index = mps->files.num - 1;
@@ -242,7 +275,8 @@ static void mps_playlist_prev(void *data)
 	}
 
 	obs_data_t *settings = obs_data_create();
-	obs_data_set_string(settings, "local_file", mps->files.array[--mps->current_media_index].path);
+	obs_data_set_string(settings, "local_file",
+			    mps->files.array[mps->current_media_index].path);
 	obs_source_update(mps->current_media_source, settings);
 	obs_data_release(settings);
 }
@@ -251,7 +285,8 @@ static void mps_activate(void *data)
 {
 	struct media_playlist_source *mps = data;
 	obs_source_media_play_pause(mps->current_media_source, false);
-
+	set_media_state(mps, OBS_MEDIA_STATE_PLAYING);
+	obs_source_media_started(mps->source);
 	/*if (mps->behavior == BEHAVIOR_STOP_RESTART) {
 		mps->restart_on_activate = true;
 		mps->use_cut = true;
@@ -265,6 +300,8 @@ static void mps_deactivate(void *data)
 	struct media_playlist_source *mps = data;
 
 	obs_source_media_play_pause(mps->current_media_source, true);
+	set_media_state(mps, OBS_MEDIA_STATE_STOPPED);
+	obs_source_media_ended(mps->source);
 	/*if (mps->behavior == BEHAVIOR_PAUSE_UNPAUSE)
 		mps->pause_on_deactivate = true;*/
 }
@@ -290,6 +327,8 @@ static void *mps_create(obs_data_t *settings, obs_source_t *source)
 	obs_data_t *media_source_data = obs_data_create();
 	mps->current_media_source = obs_source_create_private(
 		"ffmpeg_source", "current_media_source", media_source_data);
+	obs_source_add_active_child(mps->source, mps->current_media_source);
+
 	signal_handler_t *sh_media_source =
 		obs_source_get_signal_handler(source);
 	calldata_t *cd = calldata_create();
@@ -351,9 +390,9 @@ static void mps_video_render(void *data, gs_effect_t *effect)
 }
 
 static bool mps_audio_render(void *data, uint64_t *ts_out,
-			    struct obs_source_audio_mix *audio_output,
-			    uint32_t mixers, size_t channels,
-			    size_t sample_rate)
+			     struct obs_source_audio_mix *audio_output,
+			     uint32_t mixers, size_t channels,
+			     size_t sample_rate)
 {
 	struct media_playlist_source *mps = data;
 	if (!mps->current_media_source)
@@ -451,6 +490,15 @@ static void mps_enum_sources(void *data, obs_source_enum_proc_t cb, void *param)
 	pthread_mutex_unlock(&mps->mutex);
 }
 
+static void switcher_enum_all_sources(void *data,
+				      obs_source_enum_proc_t cb,
+				      void *param)
+{
+	struct media_playlist_source *mps = data;
+
+	cb(mps->source, mps->current_media_source, param);
+}
+
 static uint32_t mps_width(void *data)
 {
 	struct media_playlist_source *mps = data;
@@ -474,7 +522,6 @@ static void mps_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, S_SUBTITLE_ENABLE, false);
 	obs_data_set_default_int(settings, S_SUBTITLE_TRACK, 1);
 }
-
 
 static obs_properties_t *mps_properties(void *data)
 {
@@ -543,8 +590,7 @@ static obs_properties_t *mps_properties(void *data)
 	return props;
 }
 
-static void add_file(struct darray *array,
-		     const char *path, size_t id)
+static void add_file(struct darray *array, const char *path, size_t id)
 {
 	DARRAY(struct media_file_data) new_files;
 	struct media_file_data data;
@@ -554,6 +600,7 @@ static void add_file(struct darray *array,
 	data.id = id;
 	data.path = bstrdup(path);
 	da_push_back(new_files, &data);
+	*array = new_files.da;
 }
 
 static void mps_update(void *data, obs_data_t *settings)
@@ -561,6 +608,8 @@ static void mps_update(void *data, obs_data_t *settings)
 	DARRAY(struct media_file_data) new_files;
 	DARRAY(struct media_file_data) old_files;
 	struct media_playlist_source *mps = data;
+	obs_data_t *media_source_settings;
+	const char *current_path = "";
 	obs_data_array_t *array;
 	size_t count;
 	const char *behavior;
@@ -607,7 +656,7 @@ static void mps_update(void *data, obs_data_t *settings)
 
 		if (id == 0) {
 			obs_data_set_int(item, "id", ++mps->last_id_count);
-		} else if (id == mps->current_media_id){
+		} else if (id == mps->current_media_id) {
 			mps->current_media_index = i;
 			found = true;
 		}
@@ -617,13 +666,27 @@ static void mps_update(void *data, obs_data_t *settings)
 	old_files.da = mps->files.da;
 	mps->files.da = new_files.da;
 	pthread_mutex_unlock(&mps->mutex);
-	
+
 	free_files(&old_files.da);
 
 	if (!found) {
-
+		mps->current_media_index = 0;
 	}
 
+	if (mps->files.num)
+		current_path = mps->files.array[mps->current_media_index].path;
+
+	media_source_settings =
+		obs_source_get_settings(mps->current_media_source);
+	const char *path = obs_data_get_string(media_source_settings, "path");
+	if (strcmp(path, current_path) != 0) {
+		obs_data_set_string(media_source_settings, "path",
+					current_path);
+		obs_source_update(mps->current_media_source, media_source_settings);
+		obs_source_media_started(mps->source);
+	}
+
+	obs_source_media_restart(mps->current_media_source);
 	/* ------------------------------------- */
 	/* create new list of sources */
 	/*
@@ -700,7 +763,6 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	obs_data_array_release(array);
 }
-
 
 static void missing_file_callback(void *src, const char *new_path, void *data)
 {
@@ -795,6 +857,8 @@ struct obs_source_info media_playlist_source_info = {
 	.media_next = mps_playlist_next,
 	.media_previous = mps_playlist_prev,
 	.media_get_state = mps_get_state,
+	.media_get_duration = mps_get_duration,
+	.media_get_time = mps_get_time,
+	.media_set_time = mps_set_time,
 	//.video_get_color_space = mps_video_get_color_space,
 };
-
