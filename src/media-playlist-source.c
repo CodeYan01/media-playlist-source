@@ -490,7 +490,7 @@ static void mps_enum_sources(void *data, obs_source_enum_proc_t cb, void *param)
 	pthread_mutex_unlock(&mps->mutex);
 }
 
-static void switcher_enum_all_sources(void *data,
+static void mps_enum_all_sources(void *data,
 				      obs_source_enum_proc_t cb,
 				      void *param)
 {
@@ -678,9 +678,9 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	media_source_settings =
 		obs_source_get_settings(mps->current_media_source);
-	const char *path = obs_data_get_string(media_source_settings, "path");
+	const char *path = obs_data_get_string(media_source_settings, "input");
 	if (strcmp(path, current_path) != 0) {
-		obs_data_set_string(media_source_settings, "path",
+		obs_data_set_string(media_source_settings, "input",
 					current_path);
 		obs_source_update(mps->current_media_source, media_source_settings);
 		obs_source_media_started(mps->source);
@@ -845,6 +845,7 @@ struct obs_source_info media_playlist_source_info = {
 	.video_tick = mps_video_tick,
 	.audio_render = mps_audio_render,
 	.enum_active_sources = mps_enum_sources,
+	.enum_all_sources = mps_enum_all_sources,
 	.get_width = mps_width,
 	.get_height = mps_height,
 	.get_defaults = mps_defaults,
