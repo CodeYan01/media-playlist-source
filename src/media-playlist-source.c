@@ -196,7 +196,7 @@ static bool playlist_modified(void *data, obs_properties_t *props,
 	UNUSED_PARAMETER(props);
 	UNUSED_PARAMETER(property);
 	UNUSED_PARAMETER(data);
-	
+	UNUSED_PARAMETER(settings);
 	return false;
 }
 
@@ -667,11 +667,6 @@ static obs_properties_t *mps_properties(void *data)
 	struct dstr path = {0};
 	obs_property_t *p;
 
-	/* Need deferred update; 
-	 * otherwise mps_update would be called without the `id` field we inserted
-	 * in each item whenever the list is modified.
-	 */
-	//obs_properties_set_flags(props, OBS_PROPERTIES_DEFER_UPDATE);
 	obs_properties_add_bool(props, S_LOOP, T_LOOP);
 	obs_properties_add_bool(props, S_SHUFFLE, T_SHUFFLE);
 
