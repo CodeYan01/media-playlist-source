@@ -176,25 +176,27 @@ static bool play_selected_clicked(obs_properties_t *props,
 	for (int i = 0; i < count; i++) {
 		obs_data_t *item = obs_data_array_item(array, i);
 		bool selected = obs_data_get_bool(item, "selected");
+		obs_data_release(item);
 		if (selected) {
 			mps->current_media_index = i;
 			break;
 		}
-		obs_data_release(item);
 	}
 
 	obs_data_array_release(array);
 	obs_data_release(settings);
+	obs_source_update_properties(mps->source);
 
 	return false;
 }
 
-static bool playlist_modified(obs_properties_t *props, obs_property_t *property,
-			      obs_data_t *settings)
+static bool playlist_modified(void *data, obs_properties_t *props,
+			      obs_property_t *property, obs_data_t *settings)
 {
 	UNUSED_PARAMETER(props);
 	UNUSED_PARAMETER(property);
-	blog(LOG_DEBUG, obs_data_get_json(settings));
+	UNUSED_PARAMETER(data);
+	
 	return false;
 }
 
@@ -351,6 +353,7 @@ static void mps_playlist_next(void *data)
 			    mps->files.array[mps->current_media_index].path);
 	obs_source_update(mps->current_media_source, settings);
 	obs_source_save(mps->source);
+	obs_source_update_properties(mps->source);
 	obs_data_release(settings);
 }
 
@@ -374,6 +377,7 @@ static void mps_playlist_prev(void *data)
 			    mps->files.array[mps->current_media_index].path);
 	obs_source_update(mps->current_media_source, settings);
 	obs_source_save(mps->source);
+	obs_source_update_properties(mps->source);
 	obs_data_release(settings);
 }
 
@@ -667,7 +671,7 @@ static obs_properties_t *mps_properties(void *data)
 	 * otherwise mps_update would be called without the `id` field we inserted
 	 * in each item whenever the list is modified.
 	 */
-	obs_properties_set_flags(props, OBS_PROPERTIES_DEFER_UPDATE);
+	//obs_properties_set_flags(props, OBS_PROPERTIES_DEFER_UPDATE);
 	obs_properties_add_bool(props, S_LOOP, T_LOOP);
 	obs_properties_add_bool(props, S_SHUFFLE, T_SHUFFLE);
 
@@ -714,10 +718,12 @@ static obs_properties_t *mps_properties(void *data)
 	dstr_free(&filter);
 	dstr_free(&exts);
 
-	obs_property_set_modified_callback(p, playlist_modified);
+	obs_property_set_modified_callback2(p, playlist_modified, mps);
 
-	obs_properties_add_text(props, S_CURRENT_FILE_NAME, T_CURRENT_FILE_NAME,
-				OBS_TEXT_INFO);
+	p = obs_properties_add_text(props, S_CURRENT_FILE_NAME,
+				    T_CURRENT_FILE_NAME, OBS_TEXT_INFO);
+	obs_property_set_long_description(p, (mps) ? mps->current_media_path
+						   : " ");
 	obs_properties_add_button(props, "play_selected", "Play First Selected",
 				  play_selected_clicked);
 
@@ -751,7 +757,8 @@ static void mps_update(void *data, obs_data_t *settings)
 	DARRAY(struct media_file_data) new_files;
 	DARRAY(struct media_file_data) old_files;
 	struct media_playlist_source *mps = data;
-	obs_data_t *media_source_settings;
+	obs_data_t *media_source_settings =
+		obs_source_get_settings(mps->current_media_source);
 	obs_data_array_t *array;
 	size_t count;
 	const char *behavior;
@@ -806,7 +813,8 @@ static void mps_update(void *data, obs_data_t *settings)
 
 		if (id == 0) {
 			obs_data_set_int(item, "id", ++mps->last_id_count);
-		} else if (!media_index_changed && id == mps->current_media_id) {
+		} else if (!media_index_changed &&
+			   id == mps->current_media_id) {
 			// check for current_media_id only if media isn't changed, allowing scripts to set the index.
 			mps->current_media_index = i;
 			found = true;
@@ -819,7 +827,7 @@ static void mps_update(void *data, obs_data_t *settings)
 	pthread_mutex_unlock(&mps->mutex);
 
 	free_files(&old_files.da);
-	
+
 	if (media_index_changed && mps->current_media_index < mps->files.num)
 		found = true;
 
@@ -830,13 +838,11 @@ static void mps_update(void *data, obs_data_t *settings)
 	}
 
 	if (mps->files.num) {
-		media_source_settings =
-			obs_source_get_settings(mps->current_media_source);
-		const char *path =
-			obs_data_get_string(media_source_settings, "local_file");
+		const char *path = obs_data_get_string(media_source_settings,
+						       "local_file");
 		if (strcmp(path, mps->current_media_path) != 0) {
 			obs_data_set_string(media_source_settings, "local_file",
-						mps->current_media_path);
+					    mps->current_media_path);
 			obs_source_update(mps->current_media_source,
 					  media_source_settings);
 			obs_source_media_started(mps->source);
@@ -915,7 +921,7 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	//	obs_source_media_started(mps->source);
 	//}
-
+	obs_data_release(media_source_settings);
 	obs_data_array_release(array);
 }
 
@@ -1025,7 +1031,7 @@ struct obs_source_info media_playlist_source_info = {
 	.get_defaults = mps_defaults,
 	.get_properties = mps_properties,
 	.missing_files = mps_missingfiles,
-	.icon_type = OBS_ICON_TYPE_SLIDESHOW,
+	.icon_type = OBS_ICON_TYPE_MEDIA,
 	.media_play_pause = mps_play_pause,
 	.media_restart = mps_restart,
 	.media_stop = mps_stop,
