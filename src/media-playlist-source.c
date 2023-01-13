@@ -19,6 +19,7 @@
 #define S_SUBTITLE_ENABLE              "subtitle_enable"
 #define S_SUBTITLE_TRACK               "subtitle"
 #define S_CURRENT_FILE_NAME            "current_file_name"
+#define S_SELECT_FILE                  "select_file"
 
 #define S_CURRENT_MEDIA_INDEX          "current_media_index"
 
@@ -35,6 +36,8 @@
 #define T_SUBTITLE_ENABLE              T_("SubtitleEnable")
 #define T_SUBTITLE_TRACK               T_("SubtitleTrack")
 #define T_CURRENT_FILE_NAME            T_("CurrentFileName")
+#define T_SELECT_FILE                  T_("SelectFile")
+#define T_NO_FILE_SELECTED             T_("NoFileSelected")
 
 #define T_PLAY_PAUSE                   T_("PlayPause")
 #define T_RESTART                      T_("Restart")
@@ -65,6 +68,8 @@ struct media_playlist_source {
 	bool loop;
 	bool paused;
 	bool manual;
+	// prevents infinite loop of refreshed properties triggering the list modification
+	bool ignore_list_modified;
 	pthread_mutex_t mutex;
 	DARRAY(struct media_file_data) files;
 	size_t current_media_id;
@@ -105,6 +110,17 @@ static inline void set_current_media_index(struct media_playlist_source *mps,
 			mps->files.array[current_media_index].id;
 		mps->current_media_path =
 			mps->files.array[mps->current_media_index].path;
+	}
+}
+
+static void play_file_at_index(void *data, size_t index)
+{
+	struct media_playlist_source *mps = data;
+	if (index < mps->files.num && index != mps->current_media_index) {
+		obs_data_t *settings = obs_data_create();
+		obs_data_set_int(settings, S_CURRENT_MEDIA_INDEX, index);
+		obs_source_update(mps->source, settings);
+		obs_data_release(settings);
 	}
 }
 
@@ -169,24 +185,13 @@ static bool play_selected_clicked(obs_properties_t *props,
 	UNUSED_PARAMETER(property);
 	struct media_playlist_source *mps = data;
 	obs_data_t *settings = obs_source_get_settings(mps->source);
-	obs_data_array_t *array = obs_data_get_array(settings, S_PLAYLIST);
-	size_t count = obs_data_array_count(array);
-	blog(LOG_DEBUG, obs_data_get_json(settings));
-
-	for (int i = 0; i < count; i++) {
-		obs_data_t *item = obs_data_array_item(array, i);
-		bool selected = obs_data_get_bool(item, "selected");
-		obs_data_release(item);
-		if (selected) {
-			mps->current_media_index = i;
-			break;
-		}
+	size_t file_index = obs_data_get_int(settings, S_SELECT_FILE);
+	if (file_index > 0) {
+		play_file_at_index(mps, --file_index);
 	}
 
-	obs_data_array_release(array);
 	obs_data_release(settings);
 	obs_source_update_properties(mps->source);
-
 	return false;
 }
 
@@ -195,8 +200,15 @@ static bool playlist_modified(void *data, obs_properties_t *props,
 {
 	UNUSED_PARAMETER(props);
 	UNUSED_PARAMETER(property);
-	UNUSED_PARAMETER(data);
 	UNUSED_PARAMETER(settings);
+	struct media_playlist_source *mps = data;
+
+	if (mps->ignore_list_modified) {
+		mps->ignore_list_modified = false;
+	} else {
+		mps->ignore_list_modified = true;
+		obs_source_update_properties(mps->source);
+	}
 	return false;
 }
 
@@ -662,9 +674,13 @@ static obs_properties_t *mps_properties(void *data)
 {
 	obs_properties_t *props = obs_properties_create();
 	struct media_playlist_source *mps = data;
+	obs_data_t *settings = obs_source_get_settings(mps->source);
+	obs_data_array_t *array = obs_data_get_array(settings, S_PLAYLIST);
+	size_t count = obs_data_array_count(array);
 	struct dstr filter = {0};
 	struct dstr exts = {0};
 	struct dstr path = {0};
+	struct dstr selection_item = {0};
 	obs_property_t *p;
 
 	obs_properties_add_bool(props, S_LOOP, T_LOOP);
@@ -719,7 +735,24 @@ static obs_properties_t *mps_properties(void *data)
 				    T_CURRENT_FILE_NAME, OBS_TEXT_INFO);
 	obs_property_set_long_description(p, (mps) ? mps->current_media_path
 						   : " ");
-	obs_properties_add_button(props, "play_selected", "Play First Selected",
+	p = obs_properties_add_list(props, S_SELECT_FILE, T_SELECT_FILE,
+				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p, T_NO_FILE_SELECTED, 0);
+	if (mps) {
+		for (size_t i = 1; i <= count; i++) {
+			obs_data_t *item = obs_data_array_item(array, i - 1);
+			dstr_copy(&selection_item, "");
+			dstr_catf(&selection_item, "%i", i);
+			dstr_cat(&selection_item, ": ");
+			dstr_cat(&selection_item,
+				 obs_data_get_string(item, "value"));
+			obs_property_list_add_int(p, selection_item.array, i);
+			obs_data_release(item);
+		}
+	}
+	dstr_free(&selection_item);
+
+	obs_properties_add_button(props, "play_selected", "Play Selected File",
 				  play_selected_clicked);
 
 	p = obs_properties_add_int(props, S_NETWORK_CACHING, T_NETWORK_CACHING,
@@ -730,6 +763,9 @@ static obs_properties_t *mps_properties(void *data)
 	obs_properties_add_bool(props, S_SUBTITLE_ENABLE, T_SUBTITLE_ENABLE);
 	obs_properties_add_int(props, S_SUBTITLE_TRACK, T_SUBTITLE_TRACK, 1, 10,
 			       1);
+
+	obs_data_array_release(array);
+	obs_data_release(settings);
 
 	return props;
 }
