@@ -742,7 +742,7 @@ static obs_properties_t *mps_properties(void *data)
 		for (size_t i = 1; i <= count; i++) {
 			obs_data_t *item = obs_data_array_item(array, i - 1);
 			dstr_copy(&selection_item, "");
-			dstr_catf(&selection_item, "%i", i);
+			dstr_catf(&selection_item, "%zu", i);
 			dstr_cat(&selection_item, ": ");
 			dstr_cat(&selection_item,
 				 obs_data_get_string(item, "value"));
@@ -793,7 +793,6 @@ static void mps_update(void *data, obs_data_t *settings)
 	obs_data_array_t *array;
 	size_t count;
 	const char *behavior;
-	bool is_first_update = false;
 	size_t new_media_index = 0;
 	bool media_index_changed = false;
 	//const char *mode;
@@ -819,7 +818,6 @@ static void mps_update(void *data, obs_data_t *settings)
 	count = obs_data_array_count(array);
 
 	if (!mps->last_id_count) {
-		is_first_update = false;
 		for (size_t i = 0; i < count; i++) {
 			obs_data_t *item = obs_data_array_item(array, i);
 			size_t id = obs_data_get_int(item, "id");
@@ -969,7 +967,7 @@ static void mps_load(void *data, obs_data_t *settings)
 	mps->current_media_index =
 		obs_data_get_int(settings, S_CURRENT_MEDIA_INDEX);
 	if (mps->files.num)
-		blog(LOG_DEBUG, "%i",
+		blog(LOG_DEBUG, "%zu",
 		     mps->files.array[mps->current_media_index].id);
 }
 
