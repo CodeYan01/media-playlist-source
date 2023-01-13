@@ -30,7 +30,7 @@ bool obs_module_load(void)
 	blog(LOG_INFO, "plugin loaded successfully (version %s)",
 	     PLUGIN_VERSION);
 	obs_register_source(&media_playlist_source_info);
-	
+
 	return true;
 }
 
