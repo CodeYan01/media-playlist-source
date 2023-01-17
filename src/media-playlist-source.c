@@ -10,10 +10,8 @@
 #define S_PLAYLIST                     "playlist"
 #define S_LOOP                         "loop"
 #define S_SHUFFLE                      "shuffle"
-#define S_BEHAVIOR                     "playback_behavior"
-#define S_BEHAVIOR_STOP_RESTART        "stop_restart"
-#define S_BEHAVIOR_PAUSE_UNPAUSE       "pause_unpause"
-#define S_BEHAVIOR_ALWAYS_PLAY         "always_play"
+#define S_VISIBILITY_BEHAVIOR          "visibility_behavior"
+#define S_RESTART_BEHAVIOR             "restart_behavior"
 #define S_NETWORK_CACHING              "network_caching"
 #define S_AUDIO_TRACK                  "audio_track"
 #define S_SUBTITLE_ENABLE              "subtitle_enable"
@@ -27,10 +25,13 @@
 #define T_PLAYLIST                     T_("Playlist")
 #define T_LOOP                         T_("LoopPlaylist")
 #define T_SHUFFLE                      T_("Shuffle")
-#define T_BEHAVIOR                     T_("PlaybackBehavior")
-#define T_BEHAVIOR_STOP_RESTART        T_("PlaybackBehavior.StopRestart")
-#define T_BEHAVIOR_PAUSE_UNPAUSE       T_("PlaybackBehavior.PauseUnpause")
-#define T_BEHAVIOR_ALWAYS_PLAY         T_("PlaybackBehavior.AlwaysPlay")
+#define T_VISIBILITY_BEHAVIOR                     T_("VisibilityBehavior")
+#define T_VISIBILITY_BEHAVIOR_STOP_RESTART        T_("VisibilityBehavior.StopRestart")
+#define T_VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE       T_("VisibilityBehavior.PauseUnpause")
+#define T_VISIBILITY_BEHAVIOR_ALWAYS_PLAY         T_("VisibilityBehavior.AlwaysPlay")
+#define T_RESTART_BEHAVIOR                        T_("RestartBehavior")
+#define T_RESTART_BEHAVIOR_CURRENT_FILE           T_("RestartBehavior.CurrentFile")
+#define T_RESTART_BEHAVIOR_FIRST_FILE             T_("RestartBehavior.FirstFile")
 #define T_NETWORK_CACHING              T_("NetworkCaching")
 #define T_AUDIO_TRACK                  T_("AudioTrack")
 #define T_SUBTITLE_ENABLE              T_("SubtitleEnable")
@@ -54,10 +55,15 @@ struct media_file_data {
 	size_t id;
 };
 
-enum behavior {
-	BEHAVIOR_STOP_RESTART,
-	BEHAVIOR_PAUSE_UNPAUSE,
-	BEHAVIOR_ALWAYS_PLAY,
+enum visibility_behavior {
+	VISIBILITY_BEHAVIOR_STOP_RESTART,
+	VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE,
+	VISIBILITY_BEHAVIOR_ALWAYS_PLAY,
+};
+
+enum restart_behavior {
+	RESTART_BEHAVIOR_CURRENT_FILE,
+	RESTART_BEHAVIOR_FIRST_FILE,
 };
 
 struct media_playlist_source {
@@ -67,6 +73,7 @@ struct media_playlist_source {
 	bool shuffle;
 	bool loop;
 	bool paused;
+	bool user_stopped;
 	bool manual;
 	// prevents infinite loop of refreshed properties triggering the list modification
 	bool ignore_list_modified;
@@ -84,7 +91,8 @@ struct media_playlist_source {
 	obs_hotkey_id prev_hotkey;
 
 	enum obs_media_state state;
-	enum behavior behavior;
+	enum visibility_behavior visibility_behavior;
+	enum restart_behavior restart_behavior;
 
 	struct circlebuf audio_data[MAX_AUDIO_CHANNELS];
 	struct circlebuf audio_frames;
@@ -110,6 +118,9 @@ static inline void set_current_media_index(struct media_playlist_source *mps,
 			mps->files.array[current_media_index].id;
 		mps->current_media_path =
 			mps->files.array[mps->current_media_index].path;
+	} else {
+		mps->current_media_id = 0;
+		mps->current_media_path = "";
 	}
 }
 
@@ -117,10 +128,13 @@ static void play_file_at_index(void *data, size_t index)
 {
 	struct media_playlist_source *mps = data;
 	if (index < mps->files.num && index != mps->current_media_index) {
+		set_current_media_index(mps, index);
 		obs_data_t *settings = obs_data_create();
-		obs_data_set_int(settings, S_CURRENT_MEDIA_INDEX, index);
-		obs_source_update(mps->source, settings);
+		obs_data_set_string(settings, "local_file",
+				    mps->files.array[index].path);
+		obs_source_update(mps->current_media_source, settings);
 		obs_data_release(settings);
+		obs_source_save(mps->source);
 	}
 }
 
@@ -146,6 +160,8 @@ static void mps_end_reached(void *data)
 	struct media_playlist_source *mps = data;
 	set_media_state(mps, OBS_MEDIA_STATE_ENDED);
 	obs_source_media_ended(mps->source);
+	set_current_media_index(mps, 0);
+	obs_source_save(mps->source);
 }
 
 static void media_source_ended(void *data, calldata_t *cd)
@@ -153,10 +169,14 @@ static void media_source_ended(void *data, calldata_t *cd)
 	UNUSED_PARAMETER(cd);
 	struct media_playlist_source *mps = data;
 
-	if (mps->current_media_index < mps->files.num - 1 || mps->loop)
+	if (mps->user_stopped) {
+		mps->user_stopped = false;
+		return;
+	} else if (mps->current_media_index < mps->files.num - 1 || mps->loop) {
 		obs_source_media_next(mps->source);
-	else
+	} else {
 		mps_end_reached(mps);
+	}
 }
 
 void mps_audio_callback(void *data, obs_source_t *source,
@@ -335,16 +355,20 @@ static void mps_restart(void *data)
 {
 	struct media_playlist_source *mps = data;
 
-	obs_source_media_restart(mps->current_media_source);
-	set_media_state(mps, OBS_MEDIA_STATE_PLAYING);
+	if (mps->restart_behavior == RESTART_BEHAVIOR_FIRST_FILE) {
+		play_file_at_index(mps, 0);
+	} else if (mps->restart_behavior == RESTART_BEHAVIOR_CURRENT_FILE) {
+		obs_source_media_restart(mps->current_media_source);
+		set_media_state(mps, OBS_MEDIA_STATE_PLAYING);
+	}
 }
 
 static void mps_stop(void *data)
 {
 	struct media_playlist_source *mps = data;
 
+	mps->user_stopped = true;
 	obs_source_media_stop(mps->current_media_source);
-	obs_source_output_video(mps->source, NULL);
 	set_media_state(mps, OBS_MEDIA_STATE_STOPPED);
 }
 
@@ -365,7 +389,6 @@ static void mps_playlist_next(void *data)
 			    mps->files.array[mps->current_media_index].path);
 	obs_source_update(mps->current_media_source, settings);
 	obs_source_save(mps->source);
-	obs_source_update_properties(mps->source);
 	obs_data_release(settings);
 }
 
@@ -378,9 +401,6 @@ static void mps_playlist_prev(void *data)
 	} else if (mps->loop) {
 		set_current_media_index(mps, mps->files.num - 1);
 	} else {
-		set_media_state(mps, OBS_MEDIA_STATE_ENDED);
-		obs_source_media_ended(mps->source);
-		obs_source_save(mps->source);
 		return;
 	}
 
@@ -389,33 +409,30 @@ static void mps_playlist_prev(void *data)
 			    mps->files.array[mps->current_media_index].path);
 	obs_source_update(mps->current_media_source, settings);
 	obs_source_save(mps->source);
-	obs_source_update_properties(mps->source);
 	obs_data_release(settings);
 }
 
 static void mps_activate(void *data)
 {
 	struct media_playlist_source *mps = data;
-	obs_source_media_play_pause(mps->current_media_source, false);
-	set_media_state(mps, OBS_MEDIA_STATE_PLAYING);
-	obs_source_media_started(mps->source);
-	/*if (mps->behavior == BEHAVIOR_STOP_RESTART) {
-		mps->restart_on_activate = true;
-		mps->use_cut = true;
-	} else if (mps->behavior == BEHAVIOR_PAUSE_UNPAUSE) {
-		mps->pause_on_deactivate = false;
-	}*/
+	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_RESTART) {
+		obs_source_media_restart(mps->source);
+	} else if (mps->visibility_behavior ==
+		   VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE) {
+		obs_source_media_play_pause(mps->source, false);
+	}
 }
 
 static void mps_deactivate(void *data)
 {
 	struct media_playlist_source *mps = data;
 
-	obs_source_media_play_pause(mps->current_media_source, true);
-	set_media_state(mps, OBS_MEDIA_STATE_STOPPED);
-	obs_source_media_ended(mps->source);
-	/*if (mps->behavior == BEHAVIOR_PAUSE_UNPAUSE)
-		mps->pause_on_deactivate = true;*/
+	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_RESTART) {
+		obs_source_media_stop(mps->source);
+	} else if (mps->visibility_behavior ==
+		   VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE) {
+		obs_source_media_play_pause(mps->source, true);
+	}
 }
 
 static void mps_destroy(void *data)
@@ -638,14 +655,6 @@ static void mps_enum_sources(void *data, obs_source_enum_proc_t cb, void *param)
 	pthread_mutex_unlock(&mps->mutex);
 }
 
-static void mps_enum_all_sources(void *data, obs_source_enum_proc_t cb,
-				 void *param)
-{
-	struct media_playlist_source *mps = data;
-
-	cb(mps->source, mps->current_media_source, param);
-}
-
 static uint32_t mps_width(void *data)
 {
 	struct media_playlist_source *mps = data;
@@ -662,8 +671,10 @@ static void mps_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, S_LOOP, true);
 	obs_data_set_default_bool(settings, S_SHUFFLE, false);
-	obs_data_set_default_string(settings, S_BEHAVIOR,
-				    S_BEHAVIOR_STOP_RESTART);
+	obs_data_set_default_int(settings, S_VISIBILITY_BEHAVIOR,
+				 VISIBILITY_BEHAVIOR_STOP_RESTART);
+	obs_data_set_default_int(settings, S_RESTART_BEHAVIOR,
+				 RESTART_BEHAVIOR_CURRENT_FILE);
 	obs_data_set_default_int(settings, S_NETWORK_CACHING, 400);
 	obs_data_set_default_int(settings, S_AUDIO_TRACK, 1);
 	obs_data_set_default_bool(settings, S_SUBTITLE_ENABLE, false);
@@ -702,15 +713,23 @@ static obs_properties_t *mps_properties(void *data)
 		pthread_mutex_unlock(&mps->mutex);
 	}
 
-	p = obs_properties_add_list(props, S_BEHAVIOR, T_BEHAVIOR,
-				    OBS_COMBO_TYPE_LIST,
-				    OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(p, T_BEHAVIOR_STOP_RESTART,
-				     S_BEHAVIOR_STOP_RESTART);
-	obs_property_list_add_string(p, T_BEHAVIOR_PAUSE_UNPAUSE,
-				     S_BEHAVIOR_PAUSE_UNPAUSE);
-	obs_property_list_add_string(p, T_BEHAVIOR_ALWAYS_PLAY,
-				     S_BEHAVIOR_ALWAYS_PLAY);
+	p = obs_properties_add_list(props, S_VISIBILITY_BEHAVIOR,
+				    T_VISIBILITY_BEHAVIOR, OBS_COMBO_TYPE_LIST,
+				    OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p, T_VISIBILITY_BEHAVIOR_STOP_RESTART,
+				  VISIBILITY_BEHAVIOR_STOP_RESTART);
+	obs_property_list_add_int(p, T_VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE,
+				  VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE);
+	obs_property_list_add_int(p, T_VISIBILITY_BEHAVIOR_ALWAYS_PLAY,
+				  VISIBILITY_BEHAVIOR_ALWAYS_PLAY);
+
+	p = obs_properties_add_list(props, S_RESTART_BEHAVIOR,
+				    T_RESTART_BEHAVIOR, OBS_COMBO_TYPE_LIST,
+				    OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p, T_RESTART_BEHAVIOR_CURRENT_FILE,
+				  RESTART_BEHAVIOR_CURRENT_FILE);
+	obs_property_list_add_int(p, T_RESTART_BEHAVIOR_FIRST_FILE,
+				  RESTART_BEHAVIOR_FIRST_FILE);
 
 	dstr_copy(&filter, obs_module_text("MediaFileFilter.AllMediaFiles"));
 	dstr_cat(&filter, media_filter);
@@ -792,7 +811,6 @@ static void mps_update(void *data, obs_data_t *settings)
 		obs_source_get_settings(mps->current_media_source);
 	obs_data_array_t *array;
 	size_t count;
-	const char *behavior;
 	size_t new_media_index = 0;
 	bool media_index_changed = false;
 	//const char *mode;
@@ -802,15 +820,9 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	da_init(new_files);
 
-	behavior = obs_data_get_string(settings, S_BEHAVIOR);
-
-	if (astrcmpi(behavior, S_BEHAVIOR_PAUSE_UNPAUSE) == 0)
-		mps->behavior = BEHAVIOR_PAUSE_UNPAUSE;
-	else if (astrcmpi(behavior, S_BEHAVIOR_ALWAYS_PLAY) == 0)
-		mps->behavior = BEHAVIOR_ALWAYS_PLAY;
-	else /* S_BEHAVIOR_STOP_RESTART */
-		mps->behavior = BEHAVIOR_STOP_RESTART;
-
+	mps->visibility_behavior =
+		obs_data_get_int(settings, S_VISIBILITY_BEHAVIOR);
+	mps->restart_behavior = obs_data_get_int(settings, S_RESTART_BEHAVIOR);
 	mps->shuffle = obs_data_get_bool(settings, S_SHUFFLE);
 	mps->loop = obs_data_get_bool(settings, S_LOOP);
 
@@ -1054,7 +1066,6 @@ struct obs_source_info media_playlist_source_info = {
 	.video_tick = mps_video_tick,
 	//.audio_render = mps_audio_render,
 	.enum_active_sources = mps_enum_sources,
-	.enum_all_sources = mps_enum_all_sources,
 	.get_width = mps_width,
 	.get_height = mps_height,
 	.get_defaults = mps_defaults,
