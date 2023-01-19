@@ -20,6 +20,13 @@
 #define S_SELECT_FILE                  "select_file"
 
 #define S_CURRENT_MEDIA_INDEX          "current_media_index"
+#define S_ID                           "id"
+#define S_IS_URL                       "is_url"
+
+/* Media Source Settings */
+#define S_FFMPEG_LOCAL_FILE            "local_file"
+#define S_FFMPEG_INPUT                 "input"
+#define S_FFMPEG_IS_LOCAL_FILE         "is_local_file"
 
 #define T_(text) obs_module_text(text)
 #define T_PLAYLIST                     T_("Playlist")
@@ -53,6 +60,7 @@
 struct media_file_data {
 	char *path;
 	size_t id;
+	bool is_url;
 };
 
 enum visibility_behavior {
@@ -124,16 +132,44 @@ static inline void set_current_media_index(struct media_playlist_source *mps,
 	}
 }
 
+/* Checks if the media source has to be updated, because updating its
+ * settings causes it to restart. Can also force update it.
+ */
+static void update_media_source(void *data, bool forced)
+{
+	struct media_playlist_source *mps = data;
+	obs_source_t *media_source = mps->current_media_source;
+	obs_data_t *settings = obs_source_get_settings(media_source);
+	struct media_file_data current_media_data =
+		mps->files.array[mps->current_media_index];
+
+	bool is_url = !obs_data_get_bool(settings, S_FFMPEG_IS_LOCAL_FILE);
+	const char *path_setting = is_url ? S_FFMPEG_INPUT
+					  : S_FFMPEG_LOCAL_FILE;
+	const char *path = obs_data_get_string(settings, path_setting);
+
+	forced = forced || is_url != current_media_data.is_url;
+	forced = forced || strcmp(path, current_media_data.path) != 0;
+
+	if (forced) {
+		path_setting = current_media_data.is_url ? S_FFMPEG_INPUT
+							 : S_FFMPEG_LOCAL_FILE;
+		obs_data_set_bool(settings, S_FFMPEG_IS_LOCAL_FILE,
+				  !current_media_data.is_url);
+		obs_data_set_string(settings, path_setting,
+				    current_media_data.path);
+		obs_source_update(media_source, settings);
+	}
+
+	obs_data_release(settings);
+}
+
 static void play_file_at_index(void *data, size_t index)
 {
 	struct media_playlist_source *mps = data;
-	if (index < mps->files.num && index != mps->current_media_index) {
+	if (index < mps->files.num) {
 		set_current_media_index(mps, index);
-		obs_data_t *settings = obs_data_create();
-		obs_data_set_string(settings, "local_file",
-				    mps->files.array[index].path);
-		obs_source_update(mps->current_media_source, settings);
-		obs_data_release(settings);
+		update_media_source(mps, true);
 		obs_source_save(mps->source);
 	}
 }
@@ -377,19 +413,14 @@ static void mps_playlist_next(void *data)
 	struct media_playlist_source *mps = data;
 
 	if (mps->current_media_index < mps->files.num - 1) {
-		set_current_media_index(mps, mps->current_media_index + 1);
+		++mps->current_media_index;
 	} else if (mps->loop) {
-		set_current_media_index(mps, 0);
+		mps->current_media_index = 0;
 	} else {
 		return;
 	}
 
-	obs_data_t *settings = obs_data_create();
-	obs_data_set_string(settings, "local_file",
-			    mps->files.array[mps->current_media_index].path);
-	obs_source_update(mps->current_media_source, settings);
-	obs_source_save(mps->source);
-	obs_data_release(settings);
+	play_file_at_index(mps, mps->current_media_index);
 }
 
 static void mps_playlist_prev(void *data)
@@ -397,19 +428,14 @@ static void mps_playlist_prev(void *data)
 	struct media_playlist_source *mps = data;
 
 	if (mps->current_media_index > 0) {
-		set_current_media_index(mps, mps->current_media_index - 1);
+		--mps->current_media_index;
 	} else if (mps->loop) {
-		set_current_media_index(mps, mps->files.num - 1);
+		mps->current_media_index = mps->files.num - 1;
 	} else {
 		return;
 	}
 
-	obs_data_t *settings = obs_data_create();
-	obs_data_set_string(settings, "local_file",
-			    mps->files.array[mps->current_media_index].path);
-	obs_source_update(mps->current_media_source, settings);
-	obs_source_save(mps->source);
-	obs_data_release(settings);
+	play_file_at_index(mps, mps->current_media_index);
 }
 
 static void mps_activate(void *data)
@@ -460,6 +486,7 @@ static void *mps_create(obs_data_t *settings, obs_source_t *source)
 
 	/* Internal media source */
 	obs_data_t *media_source_data = obs_data_create();
+	obs_data_set_bool(media_source_data, "log_changes", false);
 	mps->current_media_source = obs_source_create_private(
 		"ffmpeg_source", "current_media_source", media_source_data);
 	obs_source_add_active_child(mps->source, mps->current_media_source);
@@ -789,7 +816,8 @@ static obs_properties_t *mps_properties(void *data)
 	return props;
 }
 
-static void add_file(struct darray *array, const char *path, size_t id)
+static void add_file(struct darray *array, const char *path, size_t id,
+		     bool is_url)
 {
 	DARRAY(struct media_file_data) new_files;
 	struct media_file_data data;
@@ -798,6 +826,7 @@ static void add_file(struct darray *array, const char *path, size_t id)
 
 	data.id = id;
 	data.path = bstrdup(path);
+	data.is_url = is_url;
 	da_push_back(new_files, &data);
 	*array = new_files.da;
 }
@@ -832,7 +861,7 @@ static void mps_update(void *data, obs_data_t *settings)
 	if (!mps->last_id_count) {
 		for (size_t i = 0; i < count; i++) {
 			obs_data_t *item = obs_data_array_item(array, i);
-			size_t id = obs_data_get_int(item, "id");
+			size_t id = obs_data_get_int(item, S_ID);
 
 			if (id > mps->last_id_count)
 				mps->last_id_count = id;
@@ -850,17 +879,20 @@ static void mps_update(void *data, obs_data_t *settings)
 	for (size_t i = 0; i < count; i++) {
 		obs_data_t *item = obs_data_array_item(array, i);
 		const char *path = obs_data_get_string(item, "value");
-		size_t id = obs_data_get_int(item, "id");
+		size_t id = obs_data_get_int(item, S_ID);
+		bool is_url = obs_data_get_bool(item, S_IS_URL);
 
 		if (id == 0) {
-			obs_data_set_int(item, "id", ++mps->last_id_count);
+			obs_data_set_int(item, S_ID, ++mps->last_id_count);
+			is_url = strstr(path, "://") != NULL;
+			obs_data_set_bool(item, S_IS_URL, is_url);
 		} else if (!media_index_changed &&
 			   id == mps->current_media_id) {
 			// check for current_media_id only if media isn't changed, allowing scripts to set the index.
 			mps->current_media_index = i;
 			found = true;
 		}
-		add_file(&new_files.da, path, id);
+		add_file(&new_files.da, path, id, is_url);
 		obs_data_release(item);
 	}
 	old_files.da = mps->files.da;
@@ -879,15 +911,8 @@ static void mps_update(void *data, obs_data_t *settings)
 	}
 
 	if (mps->files.num) {
-		const char *path = obs_data_get_string(media_source_settings,
-						       "local_file");
-		if (strcmp(path, mps->current_media_path) != 0) {
-			obs_data_set_string(media_source_settings, "local_file",
-					    mps->current_media_path);
-			obs_source_update(mps->current_media_source,
-					  media_source_settings);
-			obs_source_media_started(mps->source);
-		}
+		// entry may have been edited, so update media source if needed
+		update_media_source(mps, false);
 	}
 	/* ------------------------------------- */
 	/* create new list of sources */
