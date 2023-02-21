@@ -1,55 +1,38 @@
-# OBS Plugin Template
+# Media Playlist Source
 
 ## Introduction
 
-This plugin is meant to make it easy to quickstart development of new OBS plugins. It includes:
+An OBS Plugin that serves as an alternative to VLC Video Source. It uses the
+Media Source internally.
 
-- The CMake project file
-- Boilerplate plugin source code
-- GitHub Actions workflows and repository actions
-- Build scripts for Windows, macOS, and Linux
+## Features
 
-## Configuring
+- Allows editing the playlist without restarting the video, even if files are
+reordered.
+- Saves the currently playing file so it would be played when OBS restarts.
+- Allows selecting a file from the list.
+- Shuffling (not yet implemented, planned to automatically reshuffle when the
+list is exhausted)
+- Shows the filename of the current file in the Properties window.
 
-Open `buildspec.json` and change the name and version of the plugin accordingly. This is also where the obs-studio version as well as the pre-built dependencies for Windows and macOS are defined. Use a release version (with associated checksums) from a recent [obs-deps release](https://github.com/obsproject/obs-deps/releases).
+## Limitations
 
-Next, open `CMakeLists.txt` and edit the following lines at the beginning:
+- The filename of the current file can not be updated in the Properties window
+as it could cause OBS to crash when the video ends while interacting with the 
+Properties window.
+- While this plugin works with OBS 28 and up, it requires this change at 
+https://github.com/obsproject/obs-studio/pull/8051 that allows this plugin to
+save the index of the current file, so that restarting playback is not needed
+when editing the list. This change isn't merged yet as of OBS 29.0.2.
+- Adding folders and shuffling not yet implemented.
 
-```cmake
-project(obs-plugintemplate VERSION 1.0.0)
+## Contact Me
+Although there is a Discussion tab in these forums, I would see your message
+faster if you ping me (@CodeYan) in the [OBS Discord server](https://discord.gg/obsproject),
+in #plugins-and-tools. Please do report bugs or if there are features you'd like
+to be added.
 
-set(PLUGIN_AUTHOR "Your Name Here")
-
-set(LINUX_MAINTAINER_EMAIL "me@contoso.com")
-```
-
-The build scripts (contained in the `.github/scripts` directory) will update the `project` line automatically based on values from the `buildspec.json` file. If the scripts are not used, these changes need to be done manually.
-
-## GitHub Actions & CI
-
-The scripts contained in `github/scripts` can be used to build and package the plugin and take care of setting up obs-studio as well as its own dependencies. A default workflow for GitHub Actions is also provided and will use these scripts.
-
-### Retrieving build artifacts
-
-Each build produces installers and packages that you can use for testing and releases. These artifacts can be found on the action result page via the "Actions" tab in your GitHub repository.
-
-#### Building a Release
-
-Simply create and push a tag and GitHub Actions will run the pipeline in Release Mode. This mode uses the tag as its version number instead of the git ref in normal mode.
-
-### Signing and Notarizing on macOS
-
-On macOS, Release Mode builds can be signed and sent to Apple for notarization if the necessary codesigning credentials are added as secrets to your repository. **You'll need a paid Apple Developer Account for this.**
-
-- On your Apple Developer dashboard, go to "Certificates, IDs & Profiles" and create two signing certificates:
-    - One of the "Developer ID Application" type. It will be used to sign the plugin's binaries
-    - One of the "Developer ID Installer" type. It will be used to sign the plugin's installer
-- Using the Keychain app on macOS, export these two certificates and keys into a .p12 file **protected with a strong password**
-- Encode the .p12 file into its base64 representation by running `base64 YOUR_P12_FILE`
-- Add the following secrets in your Github repository settings:
-    - `MACOS_SIGNING_APPLICATION_IDENTITY`: Name of the "Developer ID Application" signing certificate generated earlier
-    - `MACOS_SIGNING_INSTALLER_IDENTITY`: Name of "Developer ID Installer" signing certificate generated earlier
-    - `MACOS_SIGNING_CERT`: Base64-encoded string generated above
-    - `MACOS_SIGNING_CERT_PASSWORD`: Password used to generate the .p12 certificate
-    - `MACOS_NOTARIZATION_USERNAME`: Your Apple Developer account's username
-    - `MACOS_NOTARIZATION_PASSWORD`: Your Apple Developer account's password (use a generated "app password" for this)
+## Donations
+You can	donate to me through 
+[PayPal](https://www.paypal.com/donate/?hosted_button_id=S9WJDUDB8CK5S)
+to support my development. Thank you!
