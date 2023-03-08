@@ -142,18 +142,18 @@ static void update_media_source(void *data, bool forced)
 	obs_data_t *settings = obs_source_get_settings(media_source);
 	struct media_file_data current_media_data =
 		mps->files.array[mps->current_media_index];
+	bool current_is_url = !obs_data_get_bool(settings, S_FFMPEG_IS_LOCAL_FILE);
+	const char *path_setting = current_media_data.is_url
+					   ? S_FFMPEG_INPUT
+					   : S_FFMPEG_LOCAL_FILE;
 
-	bool is_url = !obs_data_get_bool(settings, S_FFMPEG_IS_LOCAL_FILE);
-	const char *path_setting = is_url ? S_FFMPEG_INPUT
-					  : S_FFMPEG_LOCAL_FILE;
-	const char *path = obs_data_get_string(settings, path_setting);
-
-	forced = forced || is_url != current_media_data.is_url;
-	forced = forced || strcmp(path, current_media_data.path) != 0;
+	forced = forced || current_is_url != current_media_data.is_url;
+	if (!forced) {
+		const char *path = obs_data_get_string(settings, path_setting);
+		forced = strcmp(path, current_media_data.path) != 0;
+	}
 
 	if (forced) {
-		path_setting = current_media_data.is_url ? S_FFMPEG_INPUT
-							 : S_FFMPEG_LOCAL_FILE;
 		obs_data_set_bool(settings, S_FFMPEG_IS_LOCAL_FILE,
 				  !current_media_data.is_url);
 		obs_data_set_string(settings, path_setting,
@@ -816,8 +816,7 @@ static obs_properties_t *mps_properties(void *data)
 	return props;
 }
 
-static void add_file(struct darray *array, const char *path, size_t id,
-		     bool is_url)
+static void add_file(struct darray *array, const char *path, size_t id)
 {
 	DARRAY(struct media_file_data) new_files;
 	struct media_file_data data;
@@ -826,7 +825,7 @@ static void add_file(struct darray *array, const char *path, size_t id,
 
 	data.id = id;
 	data.path = bstrdup(path);
-	data.is_url = is_url;
+	data.is_url = strstr(path, "://") != NULL;
 	da_push_back(new_files, &data);
 	*array = new_files.da;
 }
@@ -880,19 +879,16 @@ static void mps_update(void *data, obs_data_t *settings)
 		obs_data_t *item = obs_data_array_item(array, i);
 		const char *path = obs_data_get_string(item, "value");
 		size_t id = obs_data_get_int(item, S_ID);
-		bool is_url = obs_data_get_bool(item, S_IS_URL);
 
 		if (id == 0) {
 			obs_data_set_int(item, S_ID, ++mps->last_id_count);
-			is_url = strstr(path, "://") != NULL;
-			obs_data_set_bool(item, S_IS_URL, is_url);
 		} else if (!media_index_changed &&
 			   id == mps->current_media_id) {
 			// check for current_media_id only if media isn't changed, allowing scripts to set the index.
 			mps->current_media_index = i;
 			found = true;
 		}
-		add_file(&new_files.da, path, id, is_url);
+		add_file(&new_files.da, path, id);
 		obs_data_release(item);
 	}
 	old_files.da = mps->files.da;
