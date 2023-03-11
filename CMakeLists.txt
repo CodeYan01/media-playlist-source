@@ -12,6 +12,9 @@ set(PLUGIN_AUTHOR "Ian Rodriguez")
 # Replace 'https://www.example.com` with a link to the website of your plugin or repository
 set(PLUGIN_WEBSITE "https://github.com/CodeYan01/media-playlist-source")
 
+# Replace 'https://www.example.com` with a link to the website of your plugin or repository
+set(PLUGIN_WEBSITE "https://www.example.com")
+
 # Replace `com.example.obs-plugin-template` with a unique Bundle ID for macOS releases (used both in
 # the installer and when submitting the installer for notarization)
 set(MACOS_BUNDLEID "com.codeyan.${CMAKE_PROJECT_NAME}")
