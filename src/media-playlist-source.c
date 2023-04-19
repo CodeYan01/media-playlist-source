@@ -171,7 +171,7 @@ static void clear_media_source(void *data)
 /* Checks if the media source has to be updated, because updating its
  * settings causes it to restart. Can also force update it.
  * Should first call set_current_media_index before calling this
- * 
+ *
  * Forced updates:
  * * Using play_folder_item_at_index
  * * Using play_media_at_index
@@ -1086,7 +1086,7 @@ static obs_properties_t *mps_properties(void *data)
 	return props;
 }
 
-/* Sets the parent field of each media_file_data. This is necessary to be 
+/* Sets the parent field of each media_file_data. This is necessary to be
  * called AFTER the darray is size is modified (because of array reallocation)
  */
 static void set_parents(struct darray *array)
@@ -1338,7 +1338,7 @@ static void mps_load(void *data, obs_data_t *settings)
 	mps->current_media_index =
 		obs_data_get_int(settings, S_CURRENT_MEDIA_INDEX);
 	if (mps->files.num)
-		blog(LOG_DEBUG, "%zu",
+		obs_log(LOG_DEBUG, "%zu",
 		     mps->files.array[mps->current_media_index].id);
 }
 

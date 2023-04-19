@@ -16,30 +16,23 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include <obs-module.h>
-#include <plugin-support.h>
+#pragma once
 
-#ifdef TEST_SHUFFLER
-#include "shuffler.h"
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
 
-extern struct obs_source_info media_playlist_source_info;
+extern const char *PLUGIN_NAME;
+extern const char *PLUGIN_VERSION;
 
-bool obs_module_load(void)
-{
-	obs_log(LOG_INFO, "plugin loaded successfully (version %s)",
-		PLUGIN_VERSION);
-	obs_register_source(&media_playlist_source_info);
-#ifdef TEST_SHUFFLER
-	test_shuffler();
+void obs_log(int log_level, const char *format, ...);
+extern void blogva(int log_level, const char *format, va_list args);
+
+#ifdef __cplusplus
+}
 #endif
-	return true;
-}
-
-void obs_module_unload(void)
-{
-	obs_log(LOG_INFO, "plugin unloaded");
-}
