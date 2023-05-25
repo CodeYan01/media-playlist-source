@@ -22,6 +22,7 @@ set(LINUX_MAINTAINER_EMAIL "codeyan01@gmail.com")
 # Add your custom source files here - header files are optional and only required for visibility
 # e.g. in Xcode or Visual Studio
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.c)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/media-playlist-source.h)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/media-playlist-source.c)
 
 # Import libobs as main plugin dependency
