@@ -1,3 +1,5 @@
+#pragma once
+
 #include <obs-module.h>
 #include <util/threading.h>
 #include <util/platform.h>
@@ -5,8 +7,9 @@
 #include <util/dstr.h>
 #include <util/circlebuf.h>
 #include "playlist.h"
+#include "shuffler.h"
 
-/* clang-format on */
+/* clang-format off */
 
 enum visibility_behavior {
 	VISIBILITY_BEHAVIOR_STOP_RESTART,
@@ -19,12 +22,13 @@ enum restart_behavior {
 	RESTART_BEHAVIOR_FIRST_FILE,
 };
 
-/* clang-format off */
+/* clang-format on */
 
 struct media_playlist_source {
 	obs_source_t *source;
 	obs_source_t *current_media_source;
 
+	struct shuffler shuffler;
 	bool shuffle;
 	bool loop;
 	bool paused;
@@ -65,21 +69,22 @@ static const char *video_filter =
 	" (*.mp4 *.m4v *.ts *.mov *.mxf *.flv *.mkv *.avi *.gif *.webm);;";
 static const char *audio_filter = " (*.mp3 *.aac *.ogg *.wav);;";
 
-static void set_current_media_index(struct media_playlist_source * mps, 
+static void set_current_media_index(struct media_playlist_source *mps,
 				    size_t current_media_index);
 
 static inline void reset_folder_item_index(struct media_playlist_source *mps);
 
 static bool valid_extension(const char *ext);
 
-static void clear_media_source(void * data);
+static void clear_media_source(void *data);
 static void update_media_source(void *data, bool forced);
 
 static void play_folder_item_at_index(void *data, size_t index);
-static void play_media_at_index(void *data, size_t index, 
+static void play_media_at_index(void *data, size_t index,
 				bool play_last_folder_item);
 
-static size_t find_folder_item_index(struct darray *array, const char *filename);
+static size_t find_folder_item_index(struct darray *array,
+				     const char *filename);
 
 static void set_media_state(void *data, enum obs_media_state state);
 static enum obs_media_state mps_get_state(void *data);
@@ -124,7 +129,8 @@ static bool mps_audio_render(void *data, uint64_t *ts_out,
 			     uint32_t mixers, size_t channels,
 			     size_t sample_rate);
 static void mps_video_tick(void *data, float seconds);
-static void mps_enum_sources(void *data, obs_source_enum_proc_t cb, void *param);
+static void mps_enum_sources(void *data, obs_source_enum_proc_t cb,
+			     void *param);
 static uint32_t mps_width(void *data);
 static uint32_t mps_height(void *data);
 static void mps_defaults(obs_data_t *settings);
@@ -135,6 +141,7 @@ static void mps_load(void *data, obs_data_t *settings);
 static void missing_file_callback(void *src, const char *new_path, void *data);
 static obs_missing_files_t *mps_missingfiles(void *data);
 
+static void set_parents(struct darray *array);
 static void add_file(struct darray *array, const char *path, size_t id);
 static void free_files(struct darray *array);
 

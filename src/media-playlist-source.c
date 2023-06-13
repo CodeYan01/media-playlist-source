@@ -1,51 +1,52 @@
 #include "media-playlist-source.h"
 
-#define S_PLAYLIST                     "playlist"
-#define S_LOOP                         "loop"
-#define S_SHUFFLE                      "shuffle"
-#define S_VISIBILITY_BEHAVIOR          "visibility_behavior"
-#define S_RESTART_BEHAVIOR             "restart_behavior"
-#define S_NETWORK_CACHING              "network_caching"
-#define S_AUDIO_TRACK                  "audio_track"
-#define S_SUBTITLE_ENABLE              "subtitle_enable"
-#define S_SUBTITLE_TRACK               "subtitle"
-#define S_CURRENT_FILE_NAME            "current_file_name"
-#define S_SELECT_FILE                  "select_file"
+#define S_PLAYLIST "playlist"
+#define S_LOOP "loop"
+#define S_SHUFFLE "shuffle"
+#define S_VISIBILITY_BEHAVIOR "visibility_behavior"
+#define S_RESTART_BEHAVIOR "restart_behavior"
+#define S_NETWORK_CACHING "network_caching"
+#define S_AUDIO_TRACK "audio_track"
+#define S_SUBTITLE_ENABLE "subtitle_enable"
+#define S_SUBTITLE_TRACK "subtitle"
+#define S_CURRENT_FILE_NAME "current_file_name"
+#define S_SELECT_FILE "select_file"
 
-#define S_CURRENT_MEDIA_INDEX          "current_media_index"
+#define S_CURRENT_MEDIA_INDEX "current_media_index"
 #define S_CURRENT_FOLDER_ITEM_FILENAME "current_folder_item_filename"
-#define S_ID                           "id"
-#define S_IS_URL                       "is_url"
+#define S_ID "id"
+#define S_IS_URL "is_url"
 
 /* Media Source Settings */
-#define S_FFMPEG_LOCAL_FILE            "local_file"
-#define S_FFMPEG_INPUT                 "input"
-#define S_FFMPEG_IS_LOCAL_FILE         "is_local_file"
+#define S_FFMPEG_LOCAL_FILE "local_file"
+#define S_FFMPEG_INPUT "input"
+#define S_FFMPEG_IS_LOCAL_FILE "is_local_file"
 
 #define T_(text) obs_module_text(text)
-#define T_PLAYLIST                     T_("Playlist")
-#define T_LOOP                         T_("LoopPlaylist")
-#define T_SHUFFLE                      T_("Shuffle")
-#define T_VISIBILITY_BEHAVIOR                     T_("VisibilityBehavior")
-#define T_VISIBILITY_BEHAVIOR_STOP_RESTART        T_("VisibilityBehavior.StopRestart")
-#define T_VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE       T_("VisibilityBehavior.PauseUnpause")
-#define T_VISIBILITY_BEHAVIOR_ALWAYS_PLAY         T_("VisibilityBehavior.AlwaysPlay")
-#define T_RESTART_BEHAVIOR                        T_("RestartBehavior")
-#define T_RESTART_BEHAVIOR_CURRENT_FILE           T_("RestartBehavior.CurrentFile")
-#define T_RESTART_BEHAVIOR_FIRST_FILE             T_("RestartBehavior.FirstFile")
-#define T_NETWORK_CACHING              T_("NetworkCaching")
-#define T_AUDIO_TRACK                  T_("AudioTrack")
-#define T_SUBTITLE_ENABLE              T_("SubtitleEnable")
-#define T_SUBTITLE_TRACK               T_("SubtitleTrack")
-#define T_CURRENT_FILE_NAME            T_("CurrentFileName")
-#define T_SELECT_FILE                  T_("SelectFile")
-#define T_NO_FILE_SELECTED             T_("NoFileSelected")
+#define T_PLAYLIST T_("Playlist")
+#define T_LOOP T_("LoopPlaylist")
+#define T_SHUFFLE T_("Shuffle")
+#define T_VISIBILITY_BEHAVIOR T_("VisibilityBehavior")
+#define T_VISIBILITY_BEHAVIOR_STOP_RESTART T_("VisibilityBehavior.StopRestart")
+#define T_VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE \
+	T_("VisibilityBehavior.PauseUnpause")
+#define T_VISIBILITY_BEHAVIOR_ALWAYS_PLAY T_("VisibilityBehavior.AlwaysPlay")
+#define T_RESTART_BEHAVIOR T_("RestartBehavior")
+#define T_RESTART_BEHAVIOR_CURRENT_FILE T_("RestartBehavior.CurrentFile")
+#define T_RESTART_BEHAVIOR_FIRST_FILE T_("RestartBehavior.FirstFile")
+#define T_NETWORK_CACHING T_("NetworkCaching")
+#define T_AUDIO_TRACK T_("AudioTrack")
+#define T_SUBTITLE_ENABLE T_("SubtitleEnable")
+#define T_SUBTITLE_TRACK T_("SubtitleTrack")
+#define T_CURRENT_FILE_NAME T_("CurrentFileName")
+#define T_SELECT_FILE T_("SelectFile")
+#define T_NO_FILE_SELECTED T_("NoFileSelected")
 
-#define T_PLAY_PAUSE                   T_("PlayPause")
-#define T_RESTART                      T_("Restart")
-#define T_STOP                         T_("Stop")
-#define T_PLAYLIST_NEXT                T_("Next")
-#define T_PLAYLIST_PREV                T_("Previous")
+#define T_PLAY_PAUSE T_("PlayPause")
+#define T_RESTART T_("Restart")
+#define T_STOP T_("Stop")
+#define T_PLAYLIST_NEXT T_("Next")
+#define T_PLAYLIST_PREV T_("Previous")
 
 static inline void set_current_media_index(struct media_playlist_source *mps,
 					   size_t current_media_index)
@@ -82,7 +83,7 @@ static bool valid_extension(const char *ext)
 	dstr_cat_ch(&needle, '*');
 	dstr_cat(&needle, ext);
 
-	valid = dstr_find_i(&needle, needle.array);
+	valid = dstr_find_i(&haystack, needle.array);
 
 	dstr_free(&haystack);
 	dstr_free(&needle);
@@ -111,8 +112,6 @@ static void clear_media_source(void *data)
  * Forced updates:
  * * Using play_folder_item_at_index
  * * Using play_media_at_index
- * 
- * Non-forced update:
  * * during mps_update (files/folders can be changed)
  */
 static void update_media_source(void *data, bool forced)
@@ -293,6 +292,8 @@ static bool play_selected_clicked(obs_properties_t *props,
 	size_t file_index = obs_data_get_int(settings, S_SELECT_FILE);
 	if (file_index > 0) {
 		play_media_at_index(mps, --file_index, false);
+		if (mps->shuffle)
+			shuffler_select(&mps->shuffler, mps->actual_media);
 	}
 
 	obs_data_release(settings);
@@ -341,8 +342,8 @@ static void free_files(struct darray *array)
 				bfree(folder_item->filename);
 				bfree(folder_item->path);
 			}
-			da_free(file->folder_items);
 		}
+		da_free(file->folder_items);
 	}
 
 	da_free(files);
@@ -473,6 +474,28 @@ static void mps_playlist_next(void *data)
 	struct media_playlist_source *mps = data;
 	bool last_folder_item_reached = false;
 
+	if (mps->shuffle) {
+		if (shuffler_has_next(&mps->shuffler)) {
+			mps->actual_media = shuffler_next(&mps->shuffler);
+			bfree(mps->current_media_filename);
+			if (mps->actual_media->parent_id) {
+				mps->current_media = mps->actual_media->parent;
+				mps->current_media_filename =
+					bstrdup(mps->actual_media->filename);
+				mps->current_folder_item_index =
+					mps->actual_media->index;
+			} else {
+				mps->current_media = mps->actual_media;
+				mps->current_media_filename = NULL;
+				mps->current_folder_item_index = 0;
+			}
+			mps->current_media_index = mps->current_media->index;
+			update_media_source(mps, true);
+			obs_source_save(mps->source);
+		}
+		return;
+	}
+
 	if (mps->current_media->is_folder) {
 		if (mps->current_media->folder_items.num > 0 &&
 		    mps->current_folder_item_index <
@@ -503,6 +526,28 @@ static void mps_playlist_prev(void *data)
 {
 	struct media_playlist_source *mps = data;
 	bool is_first_folder_item = false;
+
+	if (mps->shuffle) {
+		if (shuffler_has_prev(&mps->shuffler)) {
+			mps->actual_media = shuffler_prev(&mps->shuffler);
+			bfree(mps->current_media_filename);
+			if (mps->actual_media->parent_id) {
+				mps->current_media = mps->actual_media->parent;
+				mps->current_media_filename =
+					bstrdup(mps->actual_media->filename);
+				mps->current_folder_item_index =
+					mps->actual_media->index;
+			} else {
+				mps->current_media = mps->actual_media;
+				mps->current_media_filename = NULL;
+				mps->current_folder_item_index = 0;
+			}
+			mps->current_media_index = mps->current_media->index;
+			update_media_source(mps, true);
+			obs_source_save(mps->source);
+		}
+		return;
+	}
 
 	if (mps->current_media->is_folder) {
 		if (mps->current_folder_item_index > 0) {
@@ -559,6 +604,7 @@ static void mps_destroy(void *data)
 	struct media_playlist_source *mps = data;
 
 	obs_source_release(mps->current_media_source);
+	shuffler_destroy(&mps->shuffler);
 	free_files(&mps->files.da);
 	for (size_t i = 0; i < MAX_AUDIO_CHANNELS; i++) {
 		circlebuf_free(&mps->audio_data[i]);
@@ -576,7 +622,10 @@ static void *mps_create(obs_data_t *settings, obs_source_t *source)
 	UNUSED_PARAMETER(settings);
 
 	struct media_playlist_source *mps = bzalloc(sizeof(*mps));
+
 	mps->source = source;
+
+	shuffler_init(&mps->shuffler);
 
 	/* Internal media source */
 	obs_data_t *media_source_data = obs_data_create();
@@ -918,16 +967,34 @@ static obs_properties_t *mps_properties(void *data)
 	return props;
 }
 
+/* Sets the parent field of each media_file_data. This is necessary to be 
+ * called AFTER the darray is size is modified (because of array reallocation)
+ */
+static void set_parents(struct darray *array)
+{
+	DARRAY(struct media_file_data) files;
+	files.da = *array;
+	for (size_t i = 0; i < files.num; i++) {
+		struct media_file_data *item = &files.array[i];
+		for (size_t j = 0; j < item->folder_items.num; j++) {
+			struct media_file_data *folder_item =
+				&item->folder_items.array[j];
+			folder_item->parent = item;
+		}
+	}
+}
+
 static void add_file(struct darray *array, const char *path, size_t id)
 {
 	DARRAY(struct media_file_data) new_files;
-	struct media_file_data data = {0};
-
 	new_files.da = *array;
+	struct media_file_data *data = da_push_back_new(new_files);
 
-	data.id = id;
-	data.path = bstrdup(path);
-	data.is_url = strstr(path, "://") != NULL;
+	data->id = id;
+	data->index = new_files.num - 1;
+	data->path = bstrdup(path);
+	data->is_url = strstr(path, "://") != NULL;
+	da_init(data->folder_items);
 
 	os_dir_t *dir = os_opendir(path);
 
@@ -935,8 +1002,7 @@ static void add_file(struct darray *array, const char *path, size_t id)
 		struct dstr dir_path = {0};
 		struct os_dirent *ent;
 
-		data.is_folder = true;
-		da_init(data.folder_items);
+		data->is_folder = true;
 
 		while (true) {
 			const char *ext;
@@ -953,21 +1019,20 @@ static void add_file(struct darray *array, const char *path, size_t id)
 
 			struct media_file_data folder_item = {0};
 			folder_item.filename = bstrdup(ent->d_name);
-			folder_item.parent_id = data.id;
-
+			folder_item.parent_id = data->id;
+			folder_item.index = data->folder_items.num;
 			dstr_copy(&dir_path, path);
 			dstr_cat_ch(&dir_path, '/');
 			dstr_cat(&dir_path, ent->d_name);
 			folder_item.path = bstrdup(dir_path.array);
 
-			da_push_back(data.folder_items, &folder_item);
+			da_push_back(data->folder_items, &folder_item);
 		}
 
 		dstr_free(&dir_path);
 		os_closedir(dir);
 	}
 
-	da_push_back(new_files, &data);
 	*array = new_files.da;
 }
 
@@ -981,6 +1046,8 @@ static void mps_update(void *data, obs_data_t *settings)
 	obs_data_array_t *array;
 	size_t count;
 	size_t new_media_index = 0;
+	bool shuffle = false;
+	bool shuffle_changed = false;
 	bool media_index_changed = false;
 	bool item_edited = false;
 	bool first_update = false;
@@ -995,8 +1062,11 @@ static void mps_update(void *data, obs_data_t *settings)
 	mps->visibility_behavior =
 		obs_data_get_int(settings, S_VISIBILITY_BEHAVIOR);
 	mps->restart_behavior = obs_data_get_int(settings, S_RESTART_BEHAVIOR);
-	mps->shuffle = obs_data_get_bool(settings, S_SHUFFLE);
+	shuffle = obs_data_get_bool(settings, S_SHUFFLE);
+	shuffle_changed = mps->shuffle != shuffle;
+	mps->shuffle = shuffle;
 	mps->loop = obs_data_get_bool(settings, S_LOOP);
+	shuffler_set_loop(&mps->shuffler, mps->loop);
 
 	array = obs_data_get_array(settings, S_PLAYLIST);
 	count = obs_data_array_count(array);
@@ -1020,6 +1090,10 @@ static void mps_update(void *data, obs_data_t *settings)
 	if (!first_update && mps->current_media) {
 		old_media_path = mps->current_media->path;
 	}
+	if (first_update) {
+		mps->current_media_filename = bstrdup(obs_data_get_string(
+			settings, S_CURRENT_FOLDER_ITEM_FILENAME));
+	}
 
 	bool found = false;
 	pthread_mutex_lock(&mps->mutex);
@@ -1030,6 +1104,7 @@ static void mps_update(void *data, obs_data_t *settings)
 
 		if (id == 0) {
 			obs_data_set_int(item, S_ID, ++mps->last_id_count);
+			id = mps->last_id_count;
 		} else if (!media_index_changed && mps->current_media &&
 			   id == mps->current_media->id) {
 			// check for current_media->id only if media isn't changed, allowing scripts to set the index.
@@ -1040,6 +1115,21 @@ static void mps_update(void *data, obs_data_t *settings)
 		}
 		add_file(&new_files.da, path, id);
 		obs_data_release(item);
+	}
+	set_parents(&new_files.da);
+
+	if (mps->shuffle) {
+		if (shuffle_changed) {
+			shuffler_reshuffle(&mps->shuffler);
+		}
+		shuffler_update_files(&mps->shuffler, &new_files.da);
+	} else if (shuffle_changed) {
+		bfree(mps->current_media_filename);
+		if (mps->actual_media->parent_id)
+			mps->current_media_filename =
+				bstrdup(mps->actual_media->filename);
+		else
+			mps->current_media_filename = NULL;
 	}
 	old_files.da = mps->files.da;
 	mps->files.da = new_files.da;
@@ -1071,6 +1161,22 @@ static void mps_update(void *data, obs_data_t *settings)
 				mps->current_folder_item_index = 0;
 				found = false;
 			}
+
+			if (mps->current_media->folder_items.num == 0) {
+				mps_playlist_next(mps);
+			} else {
+				mps->actual_media =
+					&mps->current_media->folder_items.array
+						 [mps->current_folder_item_index];
+				if (mps->shuffle)
+					shuffler_select(&mps->shuffler,
+							mps->actual_media);
+			}
+		} else {
+			mps->actual_media = mps->current_media;
+			if (mps->shuffle)
+				shuffler_select(&mps->shuffler,
+						mps->actual_media);
 		}
 
 		// entry may have been edited, so update media source if needed
@@ -1080,6 +1186,7 @@ static void mps_update(void *data, obs_data_t *settings)
 	} else {
 		clear_media_source(mps);
 	}
+	obs_source_save(mps->source);
 	/* ------------------------------------- */
 	/* create new list of sources */
 	/*
