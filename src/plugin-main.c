@@ -1,6 +1,6 @@
 /*
-Plugin Name
-Copyright (C) <Year> <Developer> <Email Address>
+Media Playlist Source
+Copyright (C) 2023 Ian Rodriguez ianlemuelr@gmail.com
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,6 +20,10 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include "plugin-macros.generated.h"
 
+#ifdef TEST_SHUFFLER
+#include "shuffler.h"
+#endif
+
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
@@ -30,7 +34,9 @@ bool obs_module_load(void)
 	blog(LOG_INFO, "plugin loaded successfully (version %s)",
 	     PLUGIN_VERSION);
 	obs_register_source(&media_playlist_source_info);
-
+#ifdef TEST_SHUFFLER
+	test_shuffler();
+#endif
 	return true;
 }
 
