@@ -360,7 +360,8 @@ static bool play_selected_clicked(obs_properties_t *props,
 		strlist_free(indexes);
 	}
 	obs_data_release(settings);
-	update_current_filename_property(mps, obs_properties_get(props, S_CURRENT_FILE_NAME));
+	update_current_filename_property(
+		mps, obs_properties_get(props, S_CURRENT_FILE_NAME));
 	//obs_source_update_properties(mps->source);
 	return true;
 }
@@ -1208,6 +1209,11 @@ static void mps_update(void *data, obs_data_t *settings)
 		const char *path = obs_data_get_string(item, "value");
 		size_t id = obs_data_get_int(item, S_ID);
 
+		if (!path || !*path) {
+			obs_data_release(item);
+			continue;
+		}
+
 		if (id == 0) {
 			obs_data_set_int(item, S_ID, ++mps->last_id_count);
 			id = mps->last_id_count;
@@ -1336,7 +1342,10 @@ static void missing_file_callback(void *src, const char *new_path, void *data)
 		const char *path = obs_data_get_string(file, "value");
 
 		if (strcmp(path, orig_path) == 0) {
-			obs_data_set_string(file, "value", new_path);
+			if (new_path && *new_path)
+				obs_data_set_string(file, "value", new_path);
+			else
+				obs_data_array_erase(files, i);
 
 			obs_data_release(file);
 			break;
