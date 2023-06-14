@@ -70,7 +70,7 @@ static const char *video_filter =
 static const char *audio_filter = " (*.mp3 *.aac *.ogg *.wav);;";
 
 static void set_current_media_index(struct media_playlist_source *mps,
-				    size_t current_media_index);
+				    size_t index);
 
 static inline void reset_folder_item_index(struct media_playlist_source *mps);
 
@@ -79,6 +79,10 @@ static bool valid_extension(const char *ext);
 static void clear_media_source(void *data);
 static void update_media_source(void *data, bool forced);
 
+static void select_index_proc_(struct media_playlist_source *mps,
+			       size_t media_index, size_t folder_item_index);
+
+static void select_index_proc(void *data, calldata_t *cd);
 static void play_folder_item_at_index(void *data, size_t index);
 static void play_media_at_index(void *data, size_t index,
 				bool play_last_folder_item);
@@ -134,6 +138,8 @@ static void mps_enum_sources(void *data, obs_source_enum_proc_t cb,
 static uint32_t mps_width(void *data);
 static uint32_t mps_height(void *data);
 static void mps_defaults(obs_data_t *settings);
+static void update_current_filename_property(struct media_playlist_source *mps,
+					     obs_property_t *p);
 static obs_properties_t *mps_properties(void *data);
 static void mps_update(void *data, obs_data_t *settings);
 static void mps_save(void *data, obs_data_t *settings);

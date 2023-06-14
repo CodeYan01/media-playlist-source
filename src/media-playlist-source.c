@@ -49,14 +49,42 @@
 #define T_PLAYLIST_PREV T_("Previous")
 
 static inline void set_current_media_index(struct media_playlist_source *mps,
-					   size_t current_media_index)
+					   size_t index)
 {
-	mps->current_media_index = current_media_index;
 	if (mps->files.num) {
-		mps->current_media =
-			&mps->files.array[mps->current_media_index];
+		if (index >= mps->files.num) {
+			index = 0;
+		}
+		mps->current_media_index = index;
+		mps->current_media = &mps->files.array[index];
 	} else {
+		mps->current_media_index = 0;
 		mps->current_media = NULL;
+	}
+}
+
+/* Requires setting current media index first
+ */
+static inline void
+set_current_folder_item_index(struct media_playlist_source *mps, size_t index)
+{
+	if (mps->current_media) {
+		if (!mps->current_media->is_folder) {
+			mps->current_folder_item_index = 0;
+			mps->actual_media = mps->current_media;
+			return;
+		}
+
+		if (index < mps->current_media->folder_items.num) {
+			mps->current_folder_item_index = index;
+		} else {
+			mps->current_folder_item_index = index = 0;
+		}
+		mps->actual_media =
+			&mps->current_media->folder_items.array[index];
+	} else {
+		mps->current_folder_item_index = 0;
+		mps->actual_media = NULL;
 	}
 }
 
@@ -151,6 +179,34 @@ static void update_media_source(void *data, bool forced)
 	}
 
 	obs_data_release(settings);
+}
+
+static void select_index_proc_(struct media_playlist_source *mps,
+			       size_t media_index, size_t folder_item_index)
+{
+	if (media_index < mps->files.num) {
+		pthread_mutex_lock(&mps->mutex);
+		set_current_media_index(mps, media_index);
+		set_current_folder_item_index(mps, folder_item_index);
+		if (mps->actual_media) {
+			update_media_source(mps, true);
+			if (mps->shuffle) {
+				shuffler_select(&mps->shuffler,
+						mps->actual_media);
+			}
+		}
+		pthread_mutex_unlock(&mps->mutex);
+	}
+}
+
+static void select_index_proc(void *data, calldata_t *cd)
+{
+	struct media_playlist_source *mps = data;
+	long long media_index = 0;
+	long long folder_item_index = 0;
+	calldata_get_int(cd, "media_index", &media_index);
+	calldata_get_int(cd, "folder_item_index", &folder_item_index);
+	select_index_proc_(mps, media_index, folder_item_index);
 }
 
 static void play_folder_item_at_index(void *data, size_t index)
@@ -289,16 +345,24 @@ static bool play_selected_clicked(obs_properties_t *props,
 	UNUSED_PARAMETER(property);
 	struct media_playlist_source *mps = data;
 	obs_data_t *settings = obs_source_get_settings(mps->source);
-	size_t file_index = obs_data_get_int(settings, S_SELECT_FILE);
-	if (file_index > 0) {
-		play_media_at_index(mps, --file_index, false);
-		if (mps->shuffle)
-			shuffler_select(&mps->shuffler, mps->actual_media);
-	}
+	size_t media_index = 0;
+	size_t folder_item_index = 0;
+	const char *index_str = obs_data_get_string(settings, S_SELECT_FILE);
+	if (strcmp(index_str, "0") != 0) {
+		char **indexes = strlist_split(index_str, '-', false);
 
+		media_index = strtol(indexes[0], NULL, 10) - 1;
+		if (indexes[1]) {
+			folder_item_index = strtol(indexes[1], NULL, 10) - 1;
+		}
+		select_index_proc_(mps, media_index, folder_item_index);
+
+		strlist_free(indexes);
+	}
 	obs_data_release(settings);
-	obs_source_update_properties(mps->source);
-	return false;
+	update_current_filename_property(mps, obs_properties_get(props, S_CURRENT_FILE_NAME));
+	//obs_source_update_properties(mps->source);
+	return true;
 }
 
 static bool playlist_modified(void *data, obs_properties_t *props,
@@ -474,6 +538,7 @@ static void mps_playlist_next(void *data)
 	struct media_playlist_source *mps = data;
 	bool last_folder_item_reached = false;
 
+	pthread_mutex_lock(&mps->mutex);
 	if (mps->shuffle) {
 		if (shuffler_has_next(&mps->shuffler)) {
 			mps->actual_media = shuffler_next(&mps->shuffler);
@@ -493,7 +558,7 @@ static void mps_playlist_next(void *data)
 			update_media_source(mps, true);
 			obs_source_save(mps->source);
 		}
-		return;
+		goto end;
 	}
 
 	if (mps->current_media->is_folder) {
@@ -503,7 +568,7 @@ static void mps_playlist_next(void *data)
 			++mps->current_folder_item_index;
 			play_folder_item_at_index(
 				mps, mps->current_folder_item_index);
-			return;
+			goto end;
 		} else {
 			last_folder_item_reached = true;
 			mps->current_folder_item_index = 0;
@@ -516,10 +581,13 @@ static void mps_playlist_next(void *data)
 		} else if (mps->loop) {
 			mps->current_media_index = 0;
 		} else {
-			return;
+			goto end;
 		}
 		play_media_at_index(mps, mps->current_media_index, false);
 	}
+
+end:
+	pthread_mutex_unlock(&mps->mutex);
 }
 
 static void mps_playlist_prev(void *data)
@@ -527,6 +595,7 @@ static void mps_playlist_prev(void *data)
 	struct media_playlist_source *mps = data;
 	bool is_first_folder_item = false;
 
+	pthread_mutex_lock(&mps->mutex);
 	if (mps->shuffle) {
 		if (shuffler_has_prev(&mps->shuffler)) {
 			mps->actual_media = shuffler_prev(&mps->shuffler);
@@ -546,7 +615,7 @@ static void mps_playlist_prev(void *data)
 			update_media_source(mps, true);
 			obs_source_save(mps->source);
 		}
-		return;
+		goto end;
 	}
 
 	if (mps->current_media->is_folder) {
@@ -554,7 +623,7 @@ static void mps_playlist_prev(void *data)
 			--mps->current_folder_item_index;
 			play_folder_item_at_index(
 				mps, mps->current_folder_item_index);
-			return;
+			goto end;
 		} else {
 			is_first_folder_item = true;
 		}
@@ -566,11 +635,14 @@ static void mps_playlist_prev(void *data)
 		} else if (mps->loop) {
 			mps->current_media_index = mps->files.num - 1;
 		} else {
-			return;
+			goto end;
 		}
 		play_media_at_index(mps, mps->current_media_index,
 				    is_first_folder_item);
 	}
+
+end:
+	pthread_mutex_unlock(&mps->mutex);
 }
 
 static void mps_activate(void *data)
@@ -669,9 +741,10 @@ static void *mps_create(obs_data_t *settings, obs_source_t *source)
 		obs_module_text("MediaPlaylistSource.PreviousItem"),
 		previous_hotkey, mps);
 
-	// proc_handler_t *ph = obs_source_get_proc_handler(source);
-	// proc_handler_add(ph, "int current_index()", current_slide_proc, mps);
-	// proc_handler_add(ph, "int total_files()", total_slides_proc, mps);
+	proc_handler_t *ph = obs_source_get_proc_handler(source);
+	proc_handler_add(
+		ph, "void select_index(int media_index, int folder_item_index)",
+		select_index_proc, mps);
 
 	pthread_mutex_init_value(&mps->mutex);
 	if (pthread_mutex_init(&mps->mutex, NULL) != 0)
@@ -851,17 +924,68 @@ static void mps_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, S_SUBTITLE_TRACK, 1);
 }
 
+static void add_media_to_selection(obs_property_t *list,
+				   struct media_file_data *data)
+{
+	struct dstr key = {0};
+	struct dstr name = {0};
+
+	if (data->parent) {
+		dstr_catf(&key, "%zu-%zu", data->parent->index + 1,
+			  data->index + 1);
+	} else if (data->folder_items.num) {
+		for (size_t i = 0; i < data->folder_items.num; i++) {
+			add_media_to_selection(list,
+					       &data->folder_items.array[i]);
+		}
+		return;
+	} else {
+		dstr_catf(&key, "%zu", data->index + 1);
+	}
+	dstr_copy_dstr(&name, &key);
+	dstr_cat(&name, ": ");
+	dstr_cat(&name, data->path);
+	obs_property_list_add_string(list, name.array, key.array);
+	dstr_free(&name);
+	dstr_free(&key);
+}
+
+static void update_current_filename_property(struct media_playlist_source *mps,
+					     obs_property_t *p)
+{
+	struct dstr long_desc = {0};
+	obs_properties_t *props = NULL;
+	if (!mps)
+		return;
+	if (p == NULL) {
+		props = obs_source_properties(mps->source);
+		p = obs_properties_get(props, S_CURRENT_FILE_NAME);
+	}
+	if (!mps->actual_media) {
+		obs_property_set_long_description(p, " ");
+		return;
+	} else if (mps->actual_media->parent) {
+		dstr_catf(&long_desc, "%zu-%zu",
+			  mps->actual_media->parent->index + 1,
+			  mps->actual_media->index + 1);
+	} else {
+		dstr_catf(&long_desc, "%zu", mps->actual_media->index + 1);
+	}
+	dstr_catf(&long_desc, ": %s", mps->actual_media->path);
+	obs_property_set_long_description(p, long_desc.array);
+	dstr_free(&long_desc);
+	obs_properties_destroy(props);
+}
+
 static obs_properties_t *mps_properties(void *data)
 {
 	obs_properties_t *props = obs_properties_create();
 	struct media_playlist_source *mps = data;
 	obs_data_t *settings = obs_source_get_settings(mps->source);
 	obs_data_array_t *array = obs_data_get_array(settings, S_PLAYLIST);
-	size_t count = obs_data_array_count(array);
 	struct dstr filter = {0};
 	struct dstr exts = {0};
 	struct dstr path = {0};
-	struct dstr selection_item = {0};
 	obs_property_t *p;
 
 	obs_properties_add_bool(props, S_LOOP, T_LOOP);
@@ -922,32 +1046,17 @@ static obs_properties_t *mps_properties(void *data)
 
 	p = obs_properties_add_text(props, S_CURRENT_FILE_NAME,
 				    T_CURRENT_FILE_NAME, OBS_TEXT_INFO);
-	struct dstr long_desc = {0};
-	if (mps && mps->current_media) {
-		dstr_printf(&long_desc, "%zu - %s", mps->current_media_index,
-			    mps->current_media->path);
-	} else {
-		dstr_copy(&long_desc, " ");
-	}
-	obs_property_set_long_description(p, long_desc.array);
-	dstr_free(&long_desc);
+	update_current_filename_property(mps, p);
 
 	p = obs_properties_add_list(props, S_SELECT_FILE, T_SELECT_FILE,
-				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(p, T_NO_FILE_SELECTED, 0);
+				    OBS_COMBO_TYPE_LIST,
+				    OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p, T_NO_FILE_SELECTED, "0");
 	if (mps) {
-		for (size_t i = 1; i <= count; i++) {
-			obs_data_t *item = obs_data_array_item(array, i - 1);
-			dstr_copy(&selection_item, "");
-			dstr_catf(&selection_item, "%zu", i);
-			dstr_cat(&selection_item, ": ");
-			dstr_cat(&selection_item,
-				 obs_data_get_string(item, "value"));
-			obs_property_list_add_int(p, selection_item.array, i);
-			obs_data_release(item);
+		for (size_t i = 0; i < mps->files.num; i++) {
+			add_media_to_selection(p, &mps->files.array[i]);
 		}
 	}
-	dstr_free(&selection_item);
 
 	obs_properties_add_button(props, "play_selected", "Play Selected File",
 				  play_selected_clicked);
@@ -1045,10 +1154,8 @@ static void mps_update(void *data, obs_data_t *settings)
 		obs_source_get_settings(mps->current_media_source);
 	obs_data_array_t *array;
 	size_t count;
-	size_t new_media_index = 0;
 	bool shuffle = false;
 	bool shuffle_changed = false;
-	bool media_index_changed = false;
 	bool item_edited = false;
 	bool first_update = false;
 	const char *old_media_path = NULL;
@@ -1084,15 +1191,14 @@ static void mps_update(void *data, obs_data_t *settings)
 		}
 	}
 
-	new_media_index = obs_data_get_int(settings, S_CURRENT_MEDIA_INDEX);
-	media_index_changed = mps->current_media_index != new_media_index;
-	mps->current_media_index = new_media_index;
 	if (!first_update && mps->current_media) {
 		old_media_path = mps->current_media->path;
 	}
 	if (first_update) {
 		mps->current_media_filename = bstrdup(obs_data_get_string(
 			settings, S_CURRENT_FOLDER_ITEM_FILENAME));
+		mps->current_media_index =
+			obs_data_get_int(settings, S_CURRENT_MEDIA_INDEX);
 	}
 
 	bool found = false;
@@ -1105,7 +1211,7 @@ static void mps_update(void *data, obs_data_t *settings)
 		if (id == 0) {
 			obs_data_set_int(item, S_ID, ++mps->last_id_count);
 			id = mps->last_id_count;
-		} else if (!media_index_changed && mps->current_media &&
+		} else if (!first_update && mps->current_media &&
 			   id == mps->current_media->id) {
 			// check for current_media->id only if media isn't changed, allowing scripts to set the index.
 			mps->current_media_index = i;
@@ -1137,12 +1243,7 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	free_files(&old_files.da);
 
-	if (media_index_changed && mps->current_media_index < mps->files.num) {
-		found = true;
-		reset_folder_item_index(mps);
-	}
-
-	if (found) {
+	if (found || first_update) {
 		set_current_media_index(mps, mps->current_media_index);
 	} else {
 		set_current_media_index(mps, 0);
@@ -1179,75 +1280,12 @@ static void mps_update(void *data, obs_data_t *settings)
 						mps->actual_media);
 		}
 
-		// entry may have been edited, so update media source if needed
-		if (first_update || !found || media_index_changed ||
-		    item_edited)
+		if (first_update || !found || item_edited)
 			update_media_source(mps, true);
 	} else {
 		clear_media_source(mps);
 	}
 	obs_source_save(mps->source);
-	/* ------------------------------------- */
-	/* create new list of sources */
-	/*
-	for (size_t i = 0; i < count; i++) {
-		obs_data_t *item = obs_data_array_item(array, i);
-		const char *path = obs_data_get_string(item, "value");
-		os_dir_t *dir = os_opendir(path);
-
-		if (!path || !*path) {
-			obs_data_release(item);
-			continue;
-		}
-
-		if (dir) {
-			struct dstr dir_path = {0};
-			struct os_dirent *ent;
-
-			for (;;) {
-				const char *ext;
-
-				ent = os_readdir(dir);
-				if (!ent)
-					break;
-				if (ent->directory)
-					continue;
-
-				ext = os_get_path_extension(ent->d_name);
-				if (!valid_extension(ext))
-					continue;
-
-				dstr_copy(&dir_path, path);
-				dstr_cat_ch(&dir_path, '/');
-				dstr_cat(&dir_path, ent->d_name);
-				add_file(mps, &new_files.da, dir_path.array, &cx,
-					 &cy);
-
-				if (mps->mem_usage >= MAX_MEM_USAGE)
-					break;
-			}
-
-			dstr_free(&dir_path);
-			os_closedir(dir);
-		} else {
-			add_file(mps, &new_files.da, path, &cx, &cy);
-		}
-
-		obs_data_release(item);
-
-		if (mps->mem_usage >= MAX_MEM_USAGE)
-			break;
-	}
-	*/
-
-	/* ------------------------------------- */
-	/* update settings data */
-
-	/* ------------------------------------- */
-	/* clean up and restart transition */
-
-	//free_files(&old_files.da);
-
 	/* ------------------------- */
 
 	//if (mps->files.num) {
