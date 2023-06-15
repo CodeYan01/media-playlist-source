@@ -1,3 +1,34 @@
+/*
+Media Playlist Source
+Copyright (C) 2023 Ian Rodriguez ianlemuelr@gmail.com
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program. If not, see <https://www.gnu.org/licenses/>
+*/
+
+/*
+This uses the Fisher-Yates shuffle algorithm mostly based on VLC's
+implementation of it. I adjusted it to be compatible with OBS and this plugin.
+A very detailed explanation on the concept is laid out at
+https://github.com/videolan/vlc/blob/f7bb59d9f51cc10b25ff86d34a3eff744e60c46e/src/playlist/randomizer.c
+
+I am very grateful for the work that they have done.
+
+This lets us keep the shuffling order (previous items) even when the user
+selects a specific file in the playlist. Also lets us do reshuffling keeping the
+history.
+*/
+
 #include "shuffler.h"
 
 /* On auto-reshuffle, avoid selecting the same item before at least
