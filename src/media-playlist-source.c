@@ -1246,8 +1246,8 @@ static void mps_update(void *data, obs_data_t *settings)
 			if (mps->current_media->folder_items.num == 0) {
 				mps_playlist_next(mps);
 			} else {
-				set_current_folder_item_index(mps, 
-					mps->current_folder_item_index);
+				set_current_folder_item_index(
+					mps, mps->current_folder_item_index);
 				if (mps->shuffle)
 					shuffler_select(&mps->shuffler,
 							mps->actual_media);
