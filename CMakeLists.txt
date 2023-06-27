@@ -10,14 +10,14 @@ add_library(${CMAKE_PROJECT_NAME} MODULE)
 set(PLUGIN_AUTHOR "Ian Rodriguez")
 
 # Replace 'https://www.example.com` with a link to the website of your plugin or repository
-set(PLUGIN_WEBSITE "https://www.example.com")
+set(PLUGIN_WEBSITE "https://github.com/CodeYan01/media-playlist-source")
 
 # Replace `com.example.obs-plugin-template` with a unique Bundle ID for macOS releases (used both in
 # the installer and when submitting the installer for notarization)
 set(MACOS_BUNDLEID "com.codeyan.${CMAKE_PROJECT_NAME}")
 
 # Replace `me@contoso.com` with the maintainer email address you want to put in Linux packages
-set(LINUX_MAINTAINER_EMAIL "codeyan01@gmail.com")
+set(LINUX_MAINTAINER_EMAIL "ianlemuelr@gmail.com")
 
 # Add your custom source files here - header files are optional and only required for visibility
 # e.g. in Xcode or Visual Studio
