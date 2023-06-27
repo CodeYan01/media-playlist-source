@@ -52,8 +52,6 @@ struct media_playlist_source {
 	bool paused;
 	bool user_stopped;
 	bool manual;
-	// prevents infinite loop of refreshed properties triggering the list modification
-	bool ignore_list_modified;
 	pthread_mutex_t mutex;
 	DARRAY(struct media_file_data) files;
 	struct media_file_data *current_media; // only for file/folder in the list
@@ -118,8 +116,6 @@ void mps_audio_callback(void *data, obs_source_t *source,
 			const struct audio_data *audio_data, bool muted);
 static bool play_selected_clicked(obs_properties_t *props,
 				  obs_property_t *property, void *data);
-static bool playlist_modified(void *data, obs_properties_t *props,
-			      obs_property_t *property, obs_data_t *settings);
 
 static void play_pause_hotkey(void *data, obs_hotkey_id id,
 			      obs_hotkey_t *hotkey, bool pressed);

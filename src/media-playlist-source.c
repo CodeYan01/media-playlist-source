@@ -384,23 +384,6 @@ static bool play_selected_clicked(obs_properties_t *props,
 	return true;
 }
 
-static bool playlist_modified(void *data, obs_properties_t *props,
-			      obs_property_t *property, obs_data_t *settings)
-{
-	UNUSED_PARAMETER(props);
-	UNUSED_PARAMETER(property);
-	UNUSED_PARAMETER(settings);
-	struct media_playlist_source *mps = data;
-
-	if (mps->ignore_list_modified) {
-		mps->ignore_list_modified = false;
-	} else {
-		mps->ignore_list_modified = true;
-		obs_source_update_properties(mps->source);
-	}
-	return false;
-}
-
 /* ------------------------------------------------------------------------- */
 
 static const char *mps_getname(void *unused)
@@ -974,12 +957,8 @@ static void update_current_filename_property(struct media_playlist_source *mps,
 {
 	struct dstr long_desc = {0};
 	obs_properties_t *props = NULL;
-	if (!mps)
+	if (!mps || !p)
 		return;
-	if (p == NULL) {
-		props = obs_source_properties(mps->source);
-		p = obs_properties_get(props, S_CURRENT_FILE_NAME);
-	}
 	if (!mps->actual_media) {
 		obs_property_set_long_description(p, " ");
 		return;
@@ -1060,8 +1039,6 @@ static obs_properties_t *mps_properties(void *data)
 	dstr_free(&path);
 	dstr_free(&filter);
 	dstr_free(&exts);
-
-	obs_property_set_modified_callback2(p, playlist_modified, mps);
 
 	p = obs_properties_add_text(props, S_CURRENT_FILE_NAME,
 				    T_CURRENT_FILE_NAME, OBS_TEXT_INFO);
@@ -1290,9 +1267,8 @@ static void mps_update(void *data, obs_data_t *settings)
 			if (mps->current_media->folder_items.num == 0) {
 				mps_playlist_next(mps);
 			} else {
-				mps->actual_media =
-					&mps->current_media->folder_items.array
-						 [mps->current_folder_item_index];
+				set_current_folder_item_index(mps, 
+					mps->current_folder_item_index);
 				if (mps->shuffle)
 					shuffler_select(&mps->shuffler,
 							mps->actual_media);
@@ -1308,8 +1284,12 @@ static void mps_update(void *data, obs_data_t *settings)
 			update_media_source(mps, true);
 	} else {
 		clear_media_source(mps);
+		mps->actual_media = NULL;
 	}
 	obs_source_save(mps->source);
+
+	/* So Current File Name is updated */
+	obs_source_update_properties(mps->source);
 	/* ------------------------- */
 
 	//if (mps->files.num) {
