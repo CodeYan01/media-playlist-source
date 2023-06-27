@@ -23,10 +23,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define S_SHUFFLE "shuffle"
 #define S_VISIBILITY_BEHAVIOR "visibility_behavior"
 #define S_RESTART_BEHAVIOR "restart_behavior"
-#define S_NETWORK_CACHING "network_caching"
-#define S_AUDIO_TRACK "audio_track"
-#define S_SUBTITLE_ENABLE "subtitle_enable"
-#define S_SUBTITLE_TRACK "subtitle"
 #define S_CURRENT_FILE_NAME "current_file_name"
 #define S_SELECT_FILE "select_file"
 
@@ -52,10 +48,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define T_RESTART_BEHAVIOR T_("RestartBehavior")
 #define T_RESTART_BEHAVIOR_CURRENT_FILE T_("RestartBehavior.CurrentFile")
 #define T_RESTART_BEHAVIOR_FIRST_FILE T_("RestartBehavior.FirstFile")
-#define T_NETWORK_CACHING T_("NetworkCaching")
-#define T_AUDIO_TRACK T_("AudioTrack")
-#define T_SUBTITLE_ENABLE T_("SubtitleEnable")
-#define T_SUBTITLE_TRACK T_("SubtitleTrack")
 #define T_CURRENT_FILE_NAME T_("CurrentFileName")
 #define T_SELECT_FILE T_("SelectFile")
 #define T_NO_FILE_SELECTED T_("NoFileSelected")
@@ -920,10 +912,6 @@ static void mps_defaults(obs_data_t *settings)
 				 VISIBILITY_BEHAVIOR_STOP_RESTART);
 	obs_data_set_default_int(settings, S_RESTART_BEHAVIOR,
 				 RESTART_BEHAVIOR_CURRENT_FILE);
-	obs_data_set_default_int(settings, S_NETWORK_CACHING, 400);
-	obs_data_set_default_int(settings, S_AUDIO_TRACK, 1);
-	obs_data_set_default_bool(settings, S_SUBTITLE_ENABLE, false);
-	obs_data_set_default_int(settings, S_SUBTITLE_TRACK, 1);
 }
 
 static void add_media_to_selection(obs_property_t *list,
@@ -1056,15 +1044,6 @@ static obs_properties_t *mps_properties(void *data)
 
 	obs_properties_add_button(props, "play_selected", "Play Selected File",
 				  play_selected_clicked);
-
-	p = obs_properties_add_int(props, S_NETWORK_CACHING, T_NETWORK_CACHING,
-				   100, 60000, 10);
-	obs_property_int_set_suffix(p, " ms");
-
-	obs_properties_add_int(props, S_AUDIO_TRACK, T_AUDIO_TRACK, 1, 10, 1);
-	obs_properties_add_bool(props, S_SUBTITLE_ENABLE, T_SUBTITLE_ENABLE);
-	obs_properties_add_int(props, S_SUBTITLE_TRACK, T_SUBTITLE_TRACK, 1, 10,
-			       1);
 
 	obs_data_array_release(array);
 	obs_data_release(settings);
