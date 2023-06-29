@@ -23,19 +23,43 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #ifdef TEST_SHUFFLER
 #include "shuffler.h"
 #endif
+#define TEST_VOSK
+#ifdef TEST_VOSK
+#include "vosk-filter.h"
+#endif // TEST_VOSK
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 extern struct obs_source_info media_playlist_source_info;
+extern struct obs_source_info vosk_filter_info;
+bool loaded = false;
+
+static void vf_frontend_event_cb(enum obs_frontend_event event,
+					      void *data)
+{
+	UNUSED_PARAMETER(data);
+	if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING ||
+	    event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED) {
+		loaded = true;
+	} else if (event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGING) {
+		loaded = false;
+	}
+}
 
 bool obs_module_load(void)
 {
 	blog(LOG_INFO, "plugin loaded successfully (version %s)",
 	     PLUGIN_VERSION);
 	obs_register_source(&media_playlist_source_info);
+	obs_register_source(&vosk_filter_info);
+	obs_frontend_add_event_callback(vf_frontend_event_cb,
+					NULL);
 #ifdef TEST_SHUFFLER
 	test_shuffler();
+#endif
+#ifdef TEST_VOSK
+	test_get_line_cutoff();
 #endif
 	return true;
 }

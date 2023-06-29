@@ -27,16 +27,22 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/media-playlist-source.h)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/media-playlist-source.c)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/shuffler.h)
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/shuffler.c)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/vosk-filter.h)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/vosk-filter.c)
 
 # Import libobs as main plugin dependency
 find_package(libobs REQUIRED)
 include(cmake/ObsPluginHelpers.cmake)
 
+# Import libvosk
+set(deps_path "${CMAKE_SOURCE_DIR}/../obs-build-dependencies")
+list(APPEND CMAKE_PREFIX_PATH "${deps_path}/libvosk")
+find_library(libvosk_DIR libvosk REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "${libvosk_DIR}")
+
 # Uncomment these lines if you want to use the OBS Frontend API in your plugin
-#[[
 find_package(obs-frontend-api REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
-#]]
 
 # Uncomment those lines if you want to use Qt in your plugin
 #[[
@@ -58,7 +64,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-macros.generated.h)
 # --- Platform-independent build settings ---
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)
-
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE "${libvosk_DIR}/..")
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 
 # --- End of section ---

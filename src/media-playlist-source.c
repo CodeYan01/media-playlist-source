@@ -351,7 +351,6 @@ void mps_audio_callback(void *data, obs_source_t *source,
 static bool play_selected_clicked(obs_properties_t *props,
 				  obs_property_t *property, void *data)
 {
-	UNUSED_PARAMETER(props);
 	UNUSED_PARAMETER(property);
 	struct media_playlist_source *mps = data;
 	obs_data_t *settings = obs_source_get_settings(mps->source);
