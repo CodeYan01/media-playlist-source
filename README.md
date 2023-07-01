@@ -29,7 +29,7 @@ restarted.
 not be automatically updated when the video ends as it could cause OBS to crash
 when the video ends while interacting with the Properties window. Reopening the
 Properties window will refresh the shown current file.
-- While this plugin works with OBS 28 and up, it requires this change at 
+- While this plugin works with OBS 28 and up, it requires this change at
 https://github.com/obsproject/obs-studio/pull/8051 that allows this plugin to
 save the index of the current file, so that restarting playback is not needed
 when editing the list. This change isn't merged yet as of OBS 29.1.3.
@@ -70,6 +70,6 @@ in #plugins-and-tools. Please do report bugs or if there are features you'd like
 to be added.
 
 ## Donations
-You can	donate to me through 
+You can	donate to me through
 [PayPal](https://www.paypal.com/donate/?hosted_button_id=S9WJDUDB8CK5S)
 to support my development. Thank you!

@@ -17,8 +17,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
 #include <obs-module.h>
-
-#include "plugin-macros.generated.h"
+#include <plugin-support.h>
 
 #ifdef TEST_SHUFFLER
 #include "shuffler.h"
@@ -31,8 +30,8 @@ extern struct obs_source_info media_playlist_source_info;
 
 bool obs_module_load(void)
 {
-	blog(LOG_INFO, "plugin loaded successfully (version %s)",
-	     PLUGIN_VERSION);
+	obs_log(LOG_INFO, "plugin loaded successfully (version %s)",
+		PLUGIN_VERSION);
 	obs_register_source(&media_playlist_source_info);
 #ifdef TEST_SHUFFLER
 	test_shuffler();
@@ -40,7 +39,7 @@ bool obs_module_load(void)
 	return true;
 }
 
-void obs_module_unload()
+void obs_module_unload(void)
 {
-	blog(LOG_INFO, "plugin unloaded");
+	obs_log(LOG_INFO, "plugin unloaded");
 }
