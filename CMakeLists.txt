@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.16...3.21)
+cmake_minimum_required(VERSION 3.21)
 
 # Change obs-plugintemplate to your plugin's name in a machine-readable format (e.g.:
 # obs-myawesomeplugin) and set
-project(media-playlist-source VERSION 0.0.2)
+project(media-playlist-source VERSION 0.0.3)
 add_library(${CMAKE_PROJECT_NAME} MODULE)
 
 # Replace `Your Name Here` with the name (yours or your organization's) you want to see as the
@@ -86,6 +86,10 @@ if(OS_WINDOWS)
   if(MSVC)
     target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /W4)
   endif()
+
+  # if(libvosk_DIR-NOTFOUND)
+  #   file(COPY "${libvosk_DIR}/.." DESTINATION "${CMAKE_BINARY_DIR}")
+  # endif()
   # --- End of section ---
 
   # -- macOS specific build settings and tasks --

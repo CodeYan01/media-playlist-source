@@ -128,6 +128,27 @@ static bool valid_extension(const char *ext)
 	return valid;
 }
 
+static void update_current_filename_setting(struct media_playlist_source *mps,
+					    obs_data_t *data)
+{
+	struct dstr long_desc = {0};
+	if (!mps || !data)
+		return;
+	if (!mps->actual_media) {
+		obs_data_set_string(data, S_CURRENT_FILE_NAME, " ");
+		return;
+	} else if (mps->actual_media->parent) {
+		dstr_catf(&long_desc, "%zu-%zu",
+			  mps->actual_media->parent->index + 1,
+			  mps->actual_media->index + 1);
+	} else {
+		dstr_catf(&long_desc, "%zu", mps->actual_media->index + 1);
+	}
+	dstr_catf(&long_desc, ": %s", mps->actual_media->path);
+	obs_data_set_string(data, S_CURRENT_FILE_NAME, long_desc.array);
+	dstr_free(&long_desc);
+}
+
 /* Empties path selected in media source,
  * for when there is no item in the list
  */
@@ -351,8 +372,10 @@ void mps_audio_callback(void *data, obs_source_t *source,
 static bool play_selected_clicked(obs_properties_t *props,
 				  obs_property_t *property, void *data)
 {
+	UNUSED_PARAMETER(props);
 	UNUSED_PARAMETER(property);
 	struct media_playlist_source *mps = data;
+	signal_handler_t *sh = obs_source_get_signal_handler(mps->source);
 	obs_data_t *settings = obs_source_get_settings(mps->source);
 	size_t media_index = 0;
 	size_t folder_item_index = 0;
@@ -369,9 +392,12 @@ static bool play_selected_clicked(obs_properties_t *props,
 		strlist_free(indexes);
 	}
 	obs_data_release(settings);
-	update_current_filename_property(
-		mps, obs_properties_get(props, S_CURRENT_FILE_NAME));
+	/*update_current_filename_property(
+		mps, obs_properties_get(props, S_CURRENT_FILE_NAME));*/
+	update_current_filename_setting(mps, settings);
 	//obs_source_update_properties(mps->source);
+
+	signal_handler_signal(sh, "media_next", NULL);
 	return true;
 }
 
@@ -911,6 +937,7 @@ static void mps_defaults(obs_data_t *settings)
 				 VISIBILITY_BEHAVIOR_STOP_RESTART);
 	obs_data_set_default_int(settings, S_RESTART_BEHAVIOR,
 				 RESTART_BEHAVIOR_CURRENT_FILE);
+	obs_data_set_default_string(settings, S_CURRENT_FILE_NAME, " ");
 }
 
 static void add_media_to_selection(obs_property_t *list,
@@ -943,7 +970,6 @@ static void update_current_filename_property(struct media_playlist_source *mps,
 					     obs_property_t *p)
 {
 	struct dstr long_desc = {0};
-	obs_properties_t *props = NULL;
 	if (!mps || !p)
 		return;
 	if (!mps->actual_media) {
@@ -959,7 +985,6 @@ static void update_current_filename_property(struct media_playlist_source *mps,
 	dstr_catf(&long_desc, ": %s", mps->actual_media->path);
 	obs_property_set_long_description(p, long_desc.array);
 	dstr_free(&long_desc);
-	obs_properties_destroy(props);
 }
 
 static obs_properties_t *mps_properties(void *data)
@@ -1029,7 +1054,12 @@ static obs_properties_t *mps_properties(void *data)
 
 	p = obs_properties_add_text(props, S_CURRENT_FILE_NAME,
 				    T_CURRENT_FILE_NAME, OBS_TEXT_INFO);
-	update_current_filename_property(mps, p);
+	obs_property_set_long_description(
+		p,
+		"Due to OBS limitations, this will only update if any settings"
+		" are changed, the selected file is played, or the Properties "
+		"window is reopened. It will not update when the video ends.");
+	//update_current_filename_property(mps, p);
 
 	p = obs_properties_add_list(props, S_SELECT_FILE, T_SELECT_FILE,
 				    OBS_COMBO_TYPE_LIST,
@@ -1267,6 +1297,7 @@ static void mps_update(void *data, obs_data_t *settings)
 	obs_source_save(mps->source);
 
 	/* So Current File Name is updated */
+	update_current_filename_setting(mps, settings);
 	obs_source_update_properties(mps->source);
 	/* ------------------------- */
 
