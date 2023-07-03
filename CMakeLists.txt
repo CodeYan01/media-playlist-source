@@ -35,10 +35,16 @@ find_package(libobs REQUIRED)
 include(cmake/ObsPluginHelpers.cmake)
 
 # Import libvosk
-set(deps_path "${CMAKE_SOURCE_DIR}/../obs-build-dependencies")
-list(APPEND CMAKE_PREFIX_PATH "${deps_path}/libvosk")
-find_library(libvosk_DIR libvosk REQUIRED)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "${libvosk_DIR}")
+set(deps_dir "${CMAKE_SOURCE_DIR}/../obs-build-dependencies")
+list(APPEND CMAKE_PREFIX_PATH "${deps_dir}/libvosk")
+add_library(libvosk SHARED IMPORTED)
+set_property(TARGET libvosk PROPERTY 
+    INTERFACE_INCLUDE_DIRECTORIES "${deps_dir}/libvosk")
+set_property(TARGET libvosk PROPERTY 
+    IMPORTED_LOCATION "${deps_dir}/libvosk/libvosk.dll")
+set_property(TARGET libvosk PROPERTY 
+    IMPORTED_IMPLIB "${deps_dir}/libvosk/libvosk.lib")
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libvosk)
 
 # Uncomment these lines if you want to use the OBS Frontend API in your plugin
 find_package(obs-frontend-api REQUIRED)
