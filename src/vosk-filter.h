@@ -42,7 +42,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define T_LINE_COUNT T_("LineCount")
 #define T_MODEL T_("VoskModel")
 
-#define DEFAULT_VOSK_MODEL "vosk-model-small-en-us-0.15"
+#define DEFAULT_VOSK_MODEL "vosk-models/vosk-model-small-en-us-0.15"
 // can be changed, but might be cpu-intensive to recreate the recognizer
 #define VOSK_SAMPLE_RATE 48000
 

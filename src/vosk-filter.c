@@ -262,11 +262,14 @@ static void feed_model(struct vosk_filter *vf)
 {
 	char *audio_data;
 	const char *result = NULL;
-	size_t data_len = vf->audio_buffer.size;
+	size_t data_len = 0;
 
 	pthread_mutex_lock(&vf->settings_mutex);
+	pthread_mutex_lock(&vf->buffer_mutex);
 
+	data_len = vf->audio_buffer.size;
 	if (data_len < MIN_BYTES || !vf->model || !vf->recognizer) {
+		pthread_mutex_unlock(&vf->buffer_mutex);
 		pthread_mutex_unlock(&vf->settings_mutex);
 		return;
 	}
@@ -275,7 +278,6 @@ static void feed_model(struct vosk_filter *vf)
 		data_len = MAX_BYTES;
 	}
 	audio_data = bmalloc(data_len);
-	pthread_mutex_lock(&vf->buffer_mutex);
 	circlebuf_pop_front(&vf->audio_buffer, audio_data, data_len);
 	pthread_mutex_unlock(&vf->buffer_mutex);
 
