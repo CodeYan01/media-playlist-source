@@ -42,6 +42,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define T_LINE_COUNT T_("LineCount")
 #define T_MODEL T_("VoskModel")
 
+#define DEFAULT_VOSK_MODEL "vosk-model-small-en-us-0.15"
 // can be changed, but might be cpu-intensive to recreate the recognizer
 #define VOSK_SAMPLE_RATE 48000
 
@@ -70,6 +71,7 @@ struct vosk_filter {
 	size_t line_count;
 
 	/* Vosk Model stuff*/
+	char *model_path;
 	VoskModel *model;
 	VoskRecognizer *recognizer;
 	uint64_t last_vosk_ts;
@@ -78,9 +80,12 @@ struct vosk_filter {
 	char *partial_result;
 
 	/* threading */
-	pthread_t vosk_thread;
-	bool vosk_thread_active;
+	pthread_t vosk_feed_thread;
+	pthread_t vosk_load_thread;
+	bool vosk_feed_thread_active;
+	bool vosk_load_thread_created;
 	os_event_t *feed_model_event;
+	os_event_t *vosk_loaded;
 	pthread_mutex_t settings_mutex;
 	pthread_mutex_t buffer_mutex;
 };

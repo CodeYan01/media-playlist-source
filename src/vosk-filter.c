@@ -264,7 +264,10 @@ static void feed_model(struct vosk_filter *vf)
 	const char *result = NULL;
 	size_t data_len = vf->audio_buffer.size;
 
-	if (data_len < MIN_BYTES) {
+	pthread_mutex_lock(&vf->settings_mutex);
+
+	if (data_len < MIN_BYTES || !vf->model || !vf->recognizer) {
+		pthread_mutex_unlock(&vf->settings_mutex);
 		return;
 	}
 
@@ -276,7 +279,6 @@ static void feed_model(struct vosk_filter *vf)
 	circlebuf_pop_front(&vf->audio_buffer, audio_data, data_len);
 	pthread_mutex_unlock(&vf->buffer_mutex);
 
-	pthread_mutex_lock(&vf->settings_mutex);
 	if (vosk_recognizer_accept_waveform(vf->recognizer, audio_data,
 					    (int)data_len)) {
 		result = vosk_recognizer_result(vf->recognizer);
@@ -305,11 +307,55 @@ static void feed_model(struct vosk_filter *vf)
 static void *feed_model_thread(void *data)
 {
 	struct vosk_filter *vf = data;
-	while (vf->vosk_thread_active) {
+	while (vf->vosk_feed_thread_active) {
 		feed_model(vf);
 		os_event_wait(vf->feed_model_event);
 	}
 
+	return NULL;
+}
+
+static void *vosk_load_thread(void *data)
+{
+	struct vosk_filter *vf = data;
+	VoskModel *model = NULL;
+	VoskRecognizer *recognizer = NULL;
+	char *model_path = NULL;
+	bool success = false;
+
+	pthread_mutex_lock(&vf->settings_mutex);
+	model_path = bstrdup(vf->model_path);
+	pthread_mutex_unlock(&vf->settings_mutex);
+
+	blog(LOG_INFO, "Creating vosk model from '%s'", model_path);
+	model = vosk_model_new(model_path);
+	if (model) {
+		recognizer = vosk_recognizer_new(model, VOSK_SAMPLE_RATE);
+		if (recognizer) {
+			success = true;
+		} else {
+			blog(LOG_ERROR,
+			     "Failed to create vosk recognizer from '%s'",
+			     model_path);
+			vosk_model_free(model);
+			model = NULL;
+		}
+	} else {
+		blog(LOG_ERROR, "Failed to create vosk model from '%s'",
+		     model_path);
+	}
+
+	if (success) {
+		pthread_mutex_lock(&vf->settings_mutex);
+		vf->model = model;
+		vf->recognizer = recognizer;
+		blog(LOG_INFO, "%s", "Successfully created vosk model.");
+		pthread_mutex_unlock(&vf->settings_mutex);
+	}
+
+	os_event_signal(vf->vosk_loaded);
+
+	bfree(model_path);
 	return NULL;
 }
 
@@ -332,21 +378,45 @@ static obs_properties_t *vf_get_properties(void *data)
 	UNUSED_PARAMETER(vf);
 	obs_properties_t *props = obs_properties_create();
 	obs_property_t *prop = NULL;
+	struct dstr default_dir = {0};
+
+	pthread_mutex_lock(&vf->settings_mutex);
+	if (vf->model_path) {
+		const char *slash = NULL;
+
+		dstr_copy(&default_dir, vf->model_path);
+		dstr_replace(&default_dir, "\\", "/");
+		if (default_dir.array)
+			slash = strrchr(default_dir.array, '/');
+		if (slash)
+			dstr_resize(&default_dir,
+				    slash - default_dir.array + 1);
+	}
+	pthread_mutex_unlock(&vf->settings_mutex);
+
+	obs_properties_add_path(props, S_MODEL, T_MODEL, OBS_PATH_DIRECTORY,
+				NULL, default_dir.array);
 	prop = obs_properties_add_list(props, S_TEXT_SOURCE, T_TEXT_SOURCE,
 				       OBS_COMBO_TYPE_LIST,
 				       OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(prop, "", "");
 	obs_enum_sources(populate_text_source, prop);
 	obs_properties_add_int(props, S_LINE_COUNT, T_LINE_COUNT, 0, INT_MAX,
 			       1);
 	obs_properties_add_int(props, S_LINE_LENGTH, T_LINE_LENGTH, 2, INT_MAX,
 			       1);
+
+	dstr_free(&default_dir);
 	return props;
 }
 
 void vf_get_defaults(obs_data_t *settings)
 {
+	char *other = obs_module_file(DEFAULT_VOSK_MODEL);
+	obs_data_set_default_string(settings, S_MODEL, other);
 	obs_data_set_default_int(settings, S_LINE_COUNT, 2);
 	obs_data_set_default_int(settings, S_LINE_LENGTH, 80);
+	bfree(other);
 }
 
 /* Should only be called in an audio thread */
@@ -381,7 +451,8 @@ static void set_text_proc_(void *data, const char *text)
 
 	bfree(vf->partial_result);
 	vf->partial_result = NULL;
-	vosk_recognizer_final_result(vf->recognizer);
+	if (vf->recognizer)
+		vosk_recognizer_final_result(vf->recognizer);
 	pthread_mutex_unlock(&vf->settings_mutex);
 
 	update_text_source(vf);
@@ -471,9 +542,22 @@ static void vf_update(void *data, obs_data_t *settings)
 {
 	struct vosk_filter *vf = data;
 	const char *name = obs_data_get_string(settings, S_TEXT_SOURCE);
+	const char *model_path = obs_data_get_string(settings, S_MODEL);
 	obs_source_t *source;
+	bool should_reload_vosk = false;
 
 	pthread_mutex_lock(&vf->settings_mutex);
+	if (model_path && *model_path &&
+	    (!vf->model_path || strcmp(model_path, vf->model_path) != 0)) {
+		should_reload_vosk = true;
+		vosk_model_free(vf->model);
+		vosk_recognizer_free(vf->recognizer);
+		os_event_reset(vf->vosk_loaded);
+		vf->model = NULL;
+		vf->recognizer = NULL;
+		bfree(vf->model_path);
+		vf->model_path = bstrdup(model_path);
+	}
 	vf->line_length = obs_data_get_int(settings, S_LINE_LENGTH);
 	vf->line_count = obs_data_get_int(settings, S_LINE_COUNT);
 
@@ -486,8 +570,25 @@ static void vf_update(void *data, obs_data_t *settings)
 	}
 	pthread_mutex_unlock(&vf->settings_mutex);
 
-	if (source)
+	if (should_reload_vosk) {
+		set_text_proc_(vf, "");
+	} else if (source) {
 		update_text_source(vf);
+	}
+
+	if (should_reload_vosk) {
+		if (vf->vosk_load_thread_created) {
+			pthread_join(vf->vosk_load_thread, NULL);
+			vf->vosk_load_thread_created = false;
+		}
+		if (pthread_create(&vf->vosk_load_thread, NULL,
+				   vosk_load_thread, vf) != 0) {
+			blog(LOG_ERROR, "%s", "Failed to create vosk thread");
+			vf->vosk_load_thread_created = false;
+		} else {
+			vf->vosk_load_thread_created = true;
+		}
+	}
 
 	obs_source_release(source);
 }
@@ -502,14 +603,16 @@ static void vf_destroy(void *data)
 {
 	struct vosk_filter *vf = data;
 
-	/* Clean up thread */
-	vf->vosk_thread_active = false;
-	os_event_signal(vf->feed_model_event);
-	pthread_join(vf->vosk_thread, NULL);
-	os_event_destroy(vf->feed_model_event);
-	//pthread_detach(vf->vosk_thread);
+	/* Clean up threads */
+	if (vf->vosk_load_thread_created)
+		pthread_join(vf->vosk_load_thread, NULL);
+	os_event_destroy(vf->vosk_loaded);
 
-	//pthread_mutex_lock(&vf->settings_mutex);
+	vf->vosk_feed_thread_active = false;
+	os_event_signal(vf->feed_model_event);
+	pthread_join(vf->vosk_feed_thread, NULL);
+	os_event_destroy(vf->feed_model_event);
+
 	vosk_recognizer_free(vf->recognizer);
 	vosk_model_free(vf->model);
 	audio_resampler_destroy(vf->resampler);
@@ -528,6 +631,7 @@ static void vf_destroy(void *data)
 
 	pthread_mutex_destroy(&vf->buffer_mutex);
 	pthread_mutex_destroy(&vf->settings_mutex);
+	bfree(vf->model_path);
 	bfree(vf->partial_result);
 	bfree(vf);
 }
@@ -539,11 +643,7 @@ static void *vf_create(obs_data_t *settings, obs_source_t *source)
 	struct vosk_filter *vf = bzalloc(sizeof(*vf));
 
 	vf->source = source;
-	vf->model = vosk_model_new(
-		"C:\\Users\\ian\\Downloads\\Portables\\OBS-Studio-29.0 Editablelist PR\\obs-plugins\\64bit\\model");
 	//vf->sample_rate = 0;
-	vf->recognizer =
-		vosk_recognizer_new(vf->model, (float)VOSK_SAMPLE_RATE);
 	const struct audio_output_info *info =
 		audio_output_get_info(obs_get_audio());
 	da_init(vf->finalized_lines);
@@ -561,9 +661,14 @@ static void *vf_create(obs_data_t *settings, obs_source_t *source)
 		goto error;
 	}
 
-	vf->vosk_thread_active = true;
-	if (pthread_create(&vf->vosk_thread, NULL, feed_model_thread, vf) !=
-	    0) {
+	if (os_event_init(&vf->vosk_loaded, OS_EVENT_TYPE_MANUAL) != 0) {
+		blog(LOG_ERROR, "%s", "Failed to create os_event_t");
+		goto error;
+	}
+
+	vf->vosk_feed_thread_active = true;
+	if (pthread_create(&vf->vosk_feed_thread, NULL, feed_model_thread,
+			   vf) != 0) {
 		blog(LOG_ERROR, "%s", "Failed to create vosk thread");
 		goto error;
 	}
@@ -576,14 +681,13 @@ static void *vf_create(obs_data_t *settings, obs_source_t *source)
 		goto error;
 	}
 
-	obs_frontend_add_event_callback(vf_frontend_event_cb, vf);
-
 	/* Proc handlers */
 	proc_handler_t *ph = obs_source_get_proc_handler(source);
-	proc_handler_add(ph, "void set_text(const char *text)", set_text_proc,
-			 vf);
+	proc_handler_add(ph, "void set_text(string text)", set_text_proc, vf);
 
 	vf_update(vf, settings);
+
+	obs_frontend_add_event_callback(vf_frontend_event_cb, vf);
 	return vf;
 
 error:
