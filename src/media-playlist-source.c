@@ -78,6 +78,8 @@ static inline void set_current_media_index(struct media_playlist_source *mps,
 static inline void
 set_current_folder_item_index(struct media_playlist_source *mps, size_t index)
 {
+	bfree(mps->current_media_filename);
+	mps->current_media_filename = NULL;
 	if (mps->current_media) {
 		if (!mps->current_media->is_folder) {
 			mps->current_folder_item_index = 0;
@@ -92,6 +94,8 @@ set_current_folder_item_index(struct media_playlist_source *mps, size_t index)
 		}
 		mps->actual_media =
 			&mps->current_media->folder_items.array[index];
+		mps->current_media_filename =
+			bstrdup(mps->actual_media->filename);
 	} else {
 		mps->current_folder_item_index = 0;
 		mps->actual_media = NULL;
@@ -340,6 +344,10 @@ static void media_source_ended(void *data, calldata_t *cd)
 	UNUSED_PARAMETER(cd);
 	struct media_playlist_source *mps = data;
 
+	/* In OBS 29.1.3 and below, stopping a currently playing media source triggers
+	 * both the STOPPED and ENDED signals. In the future, it should actually just
+	 * be STOPPED. TODO: Remove `user_stopped` if PR #9218 gets merged.
+	 */
 	if (mps->user_stopped) {
 		mps->user_stopped = false;
 		return;
@@ -1290,7 +1298,7 @@ static void mps_update(void *data, obs_data_t *settings)
 
 		if (first_update || !found || item_edited)
 			update_media_source(mps, true);
-	} else {
+	} else if (!first_update) {
 		clear_media_source(mps);
 		mps->actual_media = NULL;
 	}
