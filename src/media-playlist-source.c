@@ -1240,7 +1240,7 @@ static void mps_update(void *data, obs_data_t *settings)
 		shuffler_update_files(&mps->shuffler, &new_files.da);
 	} else if (shuffle_changed) {
 		bfree(mps->current_media_filename);
-		if (mps->actual_media->parent_id)
+		if (mps->actual_media && mps->actual_media->parent_id)
 			mps->current_media_filename =
 				bstrdup(mps->actual_media->filename);
 		else
