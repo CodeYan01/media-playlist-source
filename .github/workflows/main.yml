@@ -165,7 +165,7 @@ jobs:
           codesignPass: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
       - name: Upload Build Artifact
-        if: ${{ success() && (github.event_name != 'pull_request' || steps.seekingTesters.outputs.found == 'true') }}
+        if: ${{ success() }}
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.PLUGIN_NAME }}-macos-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
@@ -243,7 +243,7 @@ jobs:
           config: RelWithDebInfo
 
       - name: Upload Build Artifact
-        if: ${{ success() && (github.event_name != 'pull_request' || steps.seekingTesters.outputs.found == 'true') }}
+        if: ${{ success() }}
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.PLUGIN_NAME }}-linux-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
@@ -323,7 +323,7 @@ jobs:
           config: RelWithDebInfo
 
       - name: Upload Build Artifact
-        if: ${{ success() && (github.event_name != 'pull_request' || steps.seekingTesters.outputs.found == 'true') }}
+        if: ${{ success() }}
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.PLUGIN_NAME }}-windows-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
