@@ -114,7 +114,8 @@ bool shuffler_has_prev(struct shuffler *s)
 
 bool shuffler_has_next(struct shuffler *s)
 {
-	return s->loop || s->next < s->shuffled_files.num;
+	return s->shuffled_files.num &&
+	       (s->loop || s->next < s->shuffled_files.num);
 }
 
 struct media_file_data *shuffler_peek_prev(struct shuffler *s)
