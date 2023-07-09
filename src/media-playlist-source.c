@@ -1299,6 +1299,8 @@ static void mps_update(void *data, obs_data_t *settings)
 		if (first_update || !found || item_edited)
 			update_media_source(mps, true);
 	} else if (!first_update) {
+		bfree(mps->current_media_filename);
+		mps->current_media_filename = NULL;
 		clear_media_source(mps);
 		mps->actual_media = NULL;
 	}
