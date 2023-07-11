@@ -28,7 +28,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #define S_CURRENT_MEDIA_INDEX "current_media_index"
 #define S_CURRENT_FOLDER_ITEM_FILENAME "current_folder_item_filename"
-#define S_ID "id"
+#define S_ID "uuid"
 #define S_IS_URL "is_url"
 #define S_SPEED "speed_percent"
 #define S_REFRESH_FILENAME "refresh_filename"
@@ -448,12 +448,14 @@ static void free_files(struct darray *array)
 		struct media_file_data *file = &files.array[i];
 		bfree(file->filename);
 		bfree(file->path);
+		bfree(file->id);
 		if (file->is_folder) {
 			for (size_t j = 0; j < file->folder_items.num; j++) {
 				struct media_file_data *folder_item =
 					&file->folder_items.array[j];
 				bfree(folder_item->filename);
 				bfree(folder_item->path);
+				bfree(folder_item->id);
 			}
 		}
 		da_free(file->folder_items);
@@ -1137,13 +1139,13 @@ static void set_parents(struct darray *array)
 	}
 }
 
-static void add_file(struct darray *array, const char *path, size_t id)
+static void add_file(struct darray *array, const char *path, const char *id)
 {
 	DARRAY(struct media_file_data) new_files;
 	new_files.da = *array;
 	struct media_file_data *data = da_push_back_new(new_files);
 
-	data->id = id;
+	data->id = bstrdup(id);
 	data->index = new_files.num - 1;
 	data->path = bstrdup(path);
 	data->is_url = strstr(path, "://") != NULL;
@@ -1236,19 +1238,6 @@ static void mps_update(void *data, obs_data_t *settings)
 	array = obs_data_get_array(settings, S_PLAYLIST);
 	count = obs_data_array_count(array);
 
-	if (!mps->last_id_count) {
-		first_update = true;
-		for (size_t i = 0; i < count; i++) {
-			obs_data_t *item = obs_data_array_item(array, i);
-			size_t id = obs_data_get_int(item, S_ID);
-
-			if (id > mps->last_id_count)
-				mps->last_id_count = id;
-
-			obs_data_release(item);
-		}
-	}
-
 	if (!first_update && mps->current_media) {
 		old_media_path = mps->current_media->path;
 	}
@@ -1264,18 +1253,15 @@ static void mps_update(void *data, obs_data_t *settings)
 	for (size_t i = 0; i < count; i++) {
 		obs_data_t *item = obs_data_array_item(array, i);
 		const char *path = obs_data_get_string(item, "value");
-		size_t id = obs_data_get_int(item, S_ID);
+		const char *id = obs_data_get_string(item, S_ID);
 
 		if (!path || !*path) {
 			obs_data_release(item);
 			continue;
 		}
 
-		if (id == 0) {
-			obs_data_set_int(item, S_ID, ++mps->last_id_count);
-			id = mps->last_id_count;
-		} else if (!first_update && mps->current_media &&
-			   id == mps->current_media->id) {
+		if (!first_update && mps->current_media &&
+			   strcmp(id, mps->current_media->id) == 0) {
 			// check for current_media->id only if media isn't changed, allowing scripts to set the index.
 			mps->current_media_index = i;
 			found = true;
@@ -1399,7 +1385,7 @@ static void mps_load(void *data, obs_data_t *settings)
 	mps->current_media_index =
 		obs_data_get_int(settings, S_CURRENT_MEDIA_INDEX);
 	if (mps->files.num)
-		obs_log(LOG_DEBUG, "%zu",
+		obs_log(LOG_DEBUG, "%s",
 			mps->files.array[mps->current_media_index].id);
 }
 

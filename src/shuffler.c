@@ -322,14 +322,14 @@ size_t find_media_index(struct darray *array,
 			 * In other words, don't break this code.
 			 */
 
-			if (current_data->parent_id == search_data->parent_id) {
+			if (strcmp(current_data->parent_id, search_data->parent_id) == 0) {
 				int match = strcmp(search_data->filename,
 						   current_data->filename);
 				if (match == 0) {
 					return i;
 				}
 			}
-		} else if (search_data->id == current_data->id) {
+		} else if (strcmp(search_data->id, current_data->id) == 0) {
 			return i;
 		}
 	}
@@ -406,10 +406,13 @@ static void ArrayInitOffset(struct darray *main_array, size_t len,
 
 	for (size_t i = offset; i < len + offset; ++i) {
 		struct media_file_data data = {0};
-		data.id = i + 1;
+		struct dstr id = {0};
+		dstr_printf(&id, "%zu", i + 1);
+		data.id = bstrdup(id.array);
 		data.index = i;
 		da_init(data.folder_items);
 		da_push_back(main_files, &data);
+		dstr_free(&id);
 	}
 	*main_array = main_files.da;
 }
@@ -467,8 +470,11 @@ static void ArrayEraseRange(struct darray *array, size_t from, size_t to)
 	files.da = *array;
 	for (size_t i = from; i < to; i++) {
 		struct media_file_data *data = files.array[i];
-		for (size_t j = 0; j < data->folder_items.num; j++)
+		bfree(data->id);
+		for (size_t j = 0; j < data->folder_items.num; j++) {
 			bfree(data->folder_items.array[j].filename);
+			bfree(data->folder_items.array[j].id);
+		}
 		da_free(data->folder_items);
 	}
 	da_erase_range(files, from, to);
@@ -480,8 +486,11 @@ static void ArrayDestroy(struct darray *array)
 	files.da = *array;
 	for (size_t i = 0; i < files.num; i++) {
 		struct media_file_data *data = &files.array[i];
-		for (size_t j = 0; j < data->folder_items.num; j++)
+		bfree(data->id);
+		for (size_t j = 0; j < data->folder_items.num; j++) {
 			bfree(data->folder_items.array[j].filename);
+			bfree(data->folder_items.array[j].id);
+		}
 		da_free(data->folder_items);
 	}
 	da_free(files);
@@ -495,10 +504,10 @@ static bool media_equal(struct media_file_data *data1,
 			struct media_file_data *data2)
 {
 	if (data1->parent_id) {
-		return data1->parent_id == data2->parent_id &&
+		return strcmp(data1->parent_id, data2->parent_id) == 0 &&
 		       strcmp(data1->filename, data2->filename) == 0;
 	} else {
-		return data1->id == data2->id;
+		return strcmp(data1->id, data2->id) == 0;
 	}
 }
 
@@ -1204,11 +1213,11 @@ static void test_update_files_with_additions_and_removals(void)
 
 	/* the other items in the history must be kept in order */
 	for (int i = 0; i < 9; ++i)
-		assert(history[i]->id ==
-		       shuffler.shuffled_files.array[21 + i]->id);
+		assert(strcmp(history[i]->id,
+		       shuffler.shuffled_files.array[21 + i]->id) == 0);
 	for (int i = 0; i < 40; ++i)
-		assert(history[i + 19]->id ==
-		       shuffler.shuffled_files.array[30 + i]->id);
+		assert(strcmp(history[i + 19]->id,
+		       shuffler.shuffled_files.array[30 + i]->id) == 0);
 
 	shuffler_destroy(&shuffler);
 	da_free(items);

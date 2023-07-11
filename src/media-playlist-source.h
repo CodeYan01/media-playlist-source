@@ -165,7 +165,7 @@ static void missing_file_callback(void *src, const char *new_path, void *data);
 static obs_missing_files_t *mps_missingfiles(void *data);
 
 static void set_parents(struct darray *array);
-static void add_file(struct darray *array, const char *path, size_t id);
+static void add_file(struct darray *array, const char *path, const char *id);
 static void free_files(struct darray *array);
 
 struct obs_source_info media_playlist_source_info = {
