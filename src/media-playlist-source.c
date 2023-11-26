@@ -544,6 +544,11 @@ static void mps_restart(void *data)
 	if (mps->restart_behavior == RESTART_BEHAVIOR_FIRST_FILE) {
 		play_media_at_index(mps, 0, false);
 	} else if (mps->restart_behavior == RESTART_BEHAVIOR_CURRENT_FILE) {
+		if (mps->state == OBS_MEDIA_STATE_ENDED) {
+			// Make sure that the first file is selected
+			// We do it here, because updating a media source will restart it
+			update_media_source(mps, true);
+		}
 		obs_source_media_restart(mps->current_media_source);
 		set_media_state(mps, OBS_MEDIA_STATE_PLAYING);
 	}
