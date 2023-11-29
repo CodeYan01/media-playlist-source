@@ -33,15 +33,17 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "com.example.obs-plugintemplate"
+            "bundleId": "com.codeyan.media-playlist-source"
         }
     },
-    "name": "obs-plugintemplate",
-    "version": "1.0.0",
-    "author": "Your Name Here",
-    "website": "https://example.com",
-    "email": "me@example.com",
+    "name": "media-playlist-source",
+    "version": "0.0.5",
+    "author": "Ian Rodriguez",
+    "website": "https://github.com/CodeYan01/media-playlist-source",
+    "email": "ianlemuelr@gmail.com",
     "uuids": {
-        "windowsApp": "00000000-0000-0000-0000-000000000000"
+        "macosPackage": "EE8B44D6-A136-4815-88B2-25A6077552F4",
+        "macosInstaller": "278D9D02-94BC-4523-8027-4D81197519E2",
+        "windowsApp": "22B0D7BD-767F-45FD-901C-4D6EAB4EF875"
     }
 }
