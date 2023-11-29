@@ -1339,7 +1339,7 @@ static void mps_load(void *data, obs_data_t *settings)
 		obs_data_get_int(settings, S_CURRENT_MEDIA_INDEX);
 	if (mps->files.num)
 		obs_log(LOG_DEBUG, "%zu",
-		     mps->files.array[mps->current_media_index].id);
+			mps->files.array[mps->current_media_index].id);
 }
 
 static void missing_file_callback(void *src, const char *new_path, void *data)

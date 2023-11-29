@@ -34,6 +34,7 @@ if(ENABLE_QT)
                AUTORCC ON)
 endif()
 
+# cmake-format: off
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE src/plugin-main.c
@@ -42,5 +43,6 @@ target_sources(
           src/media-playlist-source.c
           src/shuffler.h
           src/shuffler.c)
+# cmake-format: on
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
