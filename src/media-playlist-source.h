@@ -24,6 +24,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <util/darray.h>
 #include <util/dstr.h>
 #include <util/circlebuf.h>
+#include <plugin-support.h>
 #include "playlist.h"
 #include "shuffler.h"
 
