@@ -748,27 +748,23 @@ static void *mps_create(obs_data_t *settings, obs_source_t *source)
 
 	mps->play_pause_hotkey = obs_hotkey_register_source(
 		source, "MediaPlaylistSource.PlayPause",
-		obs_module_text("PlayPause"),
-		play_pause_hotkey, mps);
+		obs_module_text("PlayPause"), play_pause_hotkey, mps);
 
 	mps->restart_hotkey = obs_hotkey_register_source(
 		source, "MediaPlaylistSource.Restart",
-		obs_module_text("Restart"), restart_hotkey,
-		mps);
+		obs_module_text("Restart"), restart_hotkey, mps);
 
 	mps->stop_hotkey = obs_hotkey_register_source(
-		source, "MediaPlaylistSource.Stop",
-		obs_module_text("Stop"), stop_hotkey, mps);
+		source, "MediaPlaylistSource.Stop", obs_module_text("Stop"),
+		stop_hotkey, mps);
 
 	mps->next_hotkey = obs_hotkey_register_source(
 		source, "MediaPlaylistSource.PlaylistNext",
-		obs_module_text("PlaylistNext"), next_hotkey,
-		mps);
+		obs_module_text("PlaylistNext"), next_hotkey, mps);
 
 	mps->prev_hotkey = obs_hotkey_register_source(
 		source, "MediaPlaylistSource.PlaylistPrev",
-		obs_module_text("PlaylistPrev"),
-		previous_hotkey, mps);
+		obs_module_text("PlaylistPrev"), previous_hotkey, mps);
 
 	proc_handler_t *ph = obs_source_get_proc_handler(source);
 	proc_handler_add(
