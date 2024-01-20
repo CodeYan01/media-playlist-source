@@ -1267,15 +1267,23 @@ static void mps_update(void *data, obs_data_t *settings)
 	if (mps->files.num) {
 		if (item_edited) {
 			mps->current_folder_item_index = 0;
-		} else if (mps->current_media_filename && mps->current_media &&
+		} else if (mps->current_media &&
 			   mps->current_media->is_folder) {
-			// some files may have been added/deleted so current file index is changed
-			mps->current_folder_item_index = find_folder_item_index(
-				&mps->current_media->folder_items.da,
-				mps->current_media_filename);
-			if (mps->current_folder_item_index == DARRAY_INVALID) {
-				mps->current_folder_item_index = 0;
-				found = false;
+			mps->current_folder_item_index = 0;
+
+			/* Find that file in the folder */
+			if (mps->current_media_filename) {
+				// some files may have been added/deleted so current file index is changed
+				mps->current_folder_item_index =
+					find_folder_item_index(
+						&mps->current_media
+							 ->folder_items.da,
+						mps->current_media_filename);
+				if (mps->current_folder_item_index ==
+				    DARRAY_INVALID) {
+					mps->current_folder_item_index = 0;
+					found = false;
+				}
 			}
 
 			if (mps->current_media->folder_items.num == 0) {
@@ -1294,8 +1302,15 @@ static void mps_update(void *data, obs_data_t *settings)
 						mps->actual_media);
 		}
 
-		if (first_update || !found || item_edited)
-			update_media_source(mps, true);
+		if (first_update || !found || item_edited) {
+			/* Clear if last file is a folder and is empty */
+			if (mps->current_media->is_folder &&
+			    mps->current_media->folder_items.num == 0) {
+				clear_media_source(mps);
+			} else {
+				update_media_source(mps, true);
+			}
+		}
 	} else if (!first_update) {
 		bfree(mps->current_media_filename);
 		mps->current_media_filename = NULL;
