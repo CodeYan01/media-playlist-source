@@ -83,7 +83,8 @@ static const char *media_filter =
 	" (*.mp4 *.mpg *.m4v *.ts *.mov *.mxf *.flv *.mkv *.avi *.gif *.webm *.mp3 *.m4a *.ogg *.aac *.wav *.opus *.flac);;";
 static const char *video_filter =
 	" (*.mp4 *.mpg *.m4v *.ts *.mov *.mxf *.flv *.mkv *.avi *.gif *.webm);;";
-static const char *audio_filter = " (*.mp3 *.m4a *.mka *.aac *.ogg *.wav *.opus *.flac);;";
+static const char *audio_filter =
+	" (*.mp3 *.m4a *.mka *.aac *.ogg *.wav *.opus *.flac);;";
 
 static void set_current_media_index(struct media_playlist_source *mps,
 				    size_t index);
