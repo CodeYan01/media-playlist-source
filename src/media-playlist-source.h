@@ -80,10 +80,10 @@ struct media_playlist_source {
 };
 
 static const char *media_filter =
-	" (*.mp4 *.m4v *.ts *.mov *.mxf *.flv *.mkv *.avi *.mp3 *.ogg *.aac *.wav *.gif *.webm);;";
+	" (*.mp4 *.mpg *.m4v *.ts *.mov *.mxf *.flv *.mkv *.avi *.gif *.webm *.mp3 *.m4a *.ogg *.aac *.wav *.opus *.flac);;";
 static const char *video_filter =
-	" (*.mp4 *.m4v *.ts *.mov *.mxf *.flv *.mkv *.avi *.gif *.webm);;";
-static const char *audio_filter = " (*.mp3 *.aac *.ogg *.wav);;";
+	" (*.mp4 *.mpg *.m4v *.ts *.mov *.mxf *.flv *.mkv *.avi *.gif *.webm);;";
+static const char *audio_filter = " (*.mp3 *.m4a *.mka *.aac *.ogg *.wav *.opus *.flac);;";
 
 static void set_current_media_index(struct media_playlist_source *mps,
 				    size_t index);
