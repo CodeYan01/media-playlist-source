@@ -35,6 +35,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define S_FFMPEG_LOCAL_FILE "local_file"
 #define S_FFMPEG_INPUT "input"
 #define S_FFMPEG_IS_LOCAL_FILE "is_local_file"
+#define S_FFMPEG_CLOSE_WHEN_INACTIVE "close_when_inactive"
 
 #define T_(text) obs_module_text(text)
 #define T_PLAYLIST T_("Playlist")
@@ -51,6 +52,8 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define T_CURRENT_FILE_NAME T_("CurrentFileName")
 #define T_SELECT_FILE T_("SelectFile")
 #define T_NO_FILE_SELECTED T_("NoFileSelected")
+#define T_FFMPEG_CLOSE_WHEN_INACTIVE T_("CloseFileWhenInactive")
+#define T_FFMPEG_CLOSE_WHEN_INACTIVE_TOOLTIP T_("CloseFileWhenInactive.Tooltip")
 
 #define T_PLAY_PAUSE T_("PlayPause")
 #define T_RESTART T_("Restart")
@@ -1041,6 +1044,11 @@ static obs_properties_t *mps_properties(void *data)
 	obs_property_list_add_int(p, T_RESTART_BEHAVIOR_FIRST_FILE,
 				  RESTART_BEHAVIOR_FIRST_FILE);
 
+	p = obs_properties_add_bool(props, S_FFMPEG_CLOSE_WHEN_INACTIVE,
+				    T_FFMPEG_CLOSE_WHEN_INACTIVE);
+	obs_property_set_long_description(p,
+					  T_FFMPEG_CLOSE_WHEN_INACTIVE_TOOLTIP);
+
 	dstr_copy(&filter, obs_module_text("MediaFileFilter.AllMediaFiles"));
 	dstr_cat(&filter, media_filter);
 	dstr_cat(&filter, obs_module_text("MediaFileFilter.VideoFiles"));
@@ -1160,8 +1168,6 @@ static void mps_update(void *data, obs_data_t *settings)
 	DARRAY(struct media_file_data) new_files;
 	DARRAY(struct media_file_data) old_files;
 	struct media_playlist_source *mps = data;
-	obs_data_t *media_source_settings =
-		obs_source_get_settings(mps->current_media_source);
 	obs_data_array_t *array;
 	size_t count;
 	bool shuffle = false;
@@ -1184,6 +1190,15 @@ static void mps_update(void *data, obs_data_t *settings)
 	mps->shuffle = shuffle;
 	mps->loop = obs_data_get_bool(settings, S_LOOP);
 	shuffler_set_loop(&mps->shuffler, mps->loop);
+
+	/* Internal media source settings */
+	mps->close_when_inactive =
+		obs_data_get_bool(settings, S_FFMPEG_CLOSE_WHEN_INACTIVE);
+	obs_data_t *media_source_settings = obs_data_create();
+	obs_data_set_bool(media_source_settings, S_FFMPEG_CLOSE_WHEN_INACTIVE,
+			  mps->close_when_inactive);
+	obs_source_update(mps->current_media_source, media_source_settings);
+	obs_data_release(media_source_settings);
 
 	array = obs_data_get_array(settings, S_PLAYLIST);
 	count = obs_data_array_count(array);
@@ -1334,7 +1349,6 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	//	obs_source_media_started(mps->source);
 	//}
-	obs_data_release(media_source_settings);
 	obs_data_array_release(array);
 }
 

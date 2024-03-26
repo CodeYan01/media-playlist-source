@@ -52,6 +52,7 @@ struct media_playlist_source {
 	bool loop;
 	bool paused;
 	bool user_stopped;
+	bool close_when_inactive;
 	pthread_mutex_t mutex;
 	DARRAY(struct media_file_data) files;
 	struct media_file_data *current_media; // only for file/folder in the list
