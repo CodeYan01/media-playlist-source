@@ -52,6 +52,7 @@ struct media_playlist_source {
 	bool loop;
 	bool paused;
 	bool user_stopped;
+	bool close_when_inactive;
 	pthread_mutex_t mutex;
 	DARRAY(struct media_file_data) files;
 	struct media_file_data *current_media; // only for file/folder in the list
@@ -61,6 +62,7 @@ struct media_playlist_source {
 	// to know if current_folder_item_index will be used, check if current file is a folder
 	size_t current_folder_item_index;
 	size_t last_id_count;
+	long long speed;
 
 	obs_hotkey_id play_pause_hotkey;
 	obs_hotkey_id restart_hotkey;

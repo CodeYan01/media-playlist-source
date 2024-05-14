@@ -30,11 +30,14 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define S_CURRENT_FOLDER_ITEM_FILENAME "current_folder_item_filename"
 #define S_ID "id"
 #define S_IS_URL "is_url"
+#define S_SPEED "speed_percent"
+#define S_REFRESH_FILENAME "refresh_filename"
 
 /* Media Source Settings */
 #define S_FFMPEG_LOCAL_FILE "local_file"
 #define S_FFMPEG_INPUT "input"
 #define S_FFMPEG_IS_LOCAL_FILE "is_local_file"
+#define S_FFMPEG_CLOSE_WHEN_INACTIVE "close_when_inactive"
 
 #define T_(text) obs_module_text(text)
 #define T_PLAYLIST T_("Playlist")
@@ -51,6 +54,11 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define T_CURRENT_FILE_NAME T_("CurrentFileName")
 #define T_SELECT_FILE T_("SelectFile")
 #define T_NO_FILE_SELECTED T_("NoFileSelected")
+#define T_FFMPEG_CLOSE_WHEN_INACTIVE T_("CloseFileWhenInactive")
+#define T_FFMPEG_CLOSE_WHEN_INACTIVE_TOOLTIP T_("CloseFileWhenInactive.Tooltip")
+#define T_SPEED T_("Speed")
+#define T_SPEED_WARNING T_("SpeedWarning")
+#define T_REFRESH_FILENAME T_("RefreshFilename")
 
 #define T_PLAY_PAUSE T_("PlayPause")
 #define T_RESTART T_("Restart")
@@ -210,6 +218,7 @@ static void update_media_source(void *data, bool forced)
 				  !mps->actual_media->is_url);
 		obs_data_set_string(settings, path_setting,
 				    mps->actual_media->path);
+		obs_data_set_int(settings, S_SPEED, mps->speed);
 		obs_source_update(media_source, settings);
 		mps->user_stopped = false;
 	}
@@ -407,6 +416,19 @@ static bool play_selected_clicked(obs_properties_t *props,
 	//obs_source_update_properties(mps->source);
 
 	signal_handler_signal(sh, "media_next", NULL);
+	return true;
+}
+
+static bool refresh_filename_clicked(obs_properties_t *props,
+				     obs_property_t *property, void *data)
+{
+	UNUSED_PARAMETER(props);
+	UNUSED_PARAMETER(property);
+	struct media_playlist_source *mps = data;
+	obs_data_t *settings = obs_source_get_settings(mps->source);
+	update_current_filename_setting(mps, settings);
+	obs_source_update_properties(mps->source);
+	obs_data_release(settings);
 	return true;
 }
 
@@ -944,6 +966,7 @@ static void mps_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, S_RESTART_BEHAVIOR,
 				 RESTART_BEHAVIOR_CURRENT_FILE);
 	obs_data_set_default_string(settings, S_CURRENT_FILE_NAME, " ");
+	obs_data_set_default_int(settings, S_SPEED, 100);
 }
 
 static void add_media_to_selection(obs_property_t *list,
@@ -1041,6 +1064,11 @@ static obs_properties_t *mps_properties(void *data)
 	obs_property_list_add_int(p, T_RESTART_BEHAVIOR_FIRST_FILE,
 				  RESTART_BEHAVIOR_FIRST_FILE);
 
+	p = obs_properties_add_bool(props, S_FFMPEG_CLOSE_WHEN_INACTIVE,
+				    T_FFMPEG_CLOSE_WHEN_INACTIVE);
+	obs_property_set_long_description(p,
+					  T_FFMPEG_CLOSE_WHEN_INACTIVE_TOOLTIP);
+
 	dstr_copy(&filter, obs_module_text("MediaFileFilter.AllMediaFiles"));
 	dstr_cat(&filter, media_filter);
 	dstr_cat(&filter, obs_module_text("MediaFileFilter.VideoFiles"));
@@ -1065,6 +1093,8 @@ static obs_properties_t *mps_properties(void *data)
 		"Due to OBS limitations, this will only update if any settings"
 		" are changed, the selected file is played, or the Properties "
 		"window is reopened. It will not update when the video ends.");
+	obs_properties_add_button(props, S_REFRESH_FILENAME, T_REFRESH_FILENAME,
+				  refresh_filename_clicked);
 	//update_current_filename_property(mps, p);
 
 	p = obs_properties_add_list(props, S_SELECT_FILE, T_SELECT_FILE,
@@ -1079,6 +1109,11 @@ static obs_properties_t *mps_properties(void *data)
 
 	obs_properties_add_button(props, "play_selected", "Play Selected File",
 				  play_selected_clicked);
+
+	p = obs_properties_add_int_slider(props, S_SPEED, T_SPEED, 1, 200, 1);
+	obs_property_int_set_suffix(p, "%");
+	p = obs_properties_add_text(props, "", T_SPEED_WARNING, OBS_TEXT_INFO);
+	obs_property_text_set_info_type(p, OBS_TEXT_INFO_WARNING);
 
 	obs_data_array_release(array);
 	obs_data_release(settings);
@@ -1160,8 +1195,6 @@ static void mps_update(void *data, obs_data_t *settings)
 	DARRAY(struct media_file_data) new_files;
 	DARRAY(struct media_file_data) old_files;
 	struct media_playlist_source *mps = data;
-	obs_data_t *media_source_settings =
-		obs_source_get_settings(mps->current_media_source);
 	obs_data_array_t *array;
 	size_t count;
 	bool shuffle = false;
@@ -1169,6 +1202,7 @@ static void mps_update(void *data, obs_data_t *settings)
 	bool item_edited = false;
 	bool first_update = false;
 	const char *old_media_path = NULL;
+	long long new_speed;
 	//const char *mode;
 
 	/* ------------------------------------- */
@@ -1184,6 +1218,21 @@ static void mps_update(void *data, obs_data_t *settings)
 	mps->shuffle = shuffle;
 	mps->loop = obs_data_get_bool(settings, S_LOOP);
 	shuffler_set_loop(&mps->shuffler, mps->loop);
+	new_speed = obs_data_get_int(settings, S_SPEED);
+	if (mps->speed != new_speed) {
+		mps->user_stopped = true;
+	}
+	mps->speed = new_speed;
+
+	/* Internal media source settings */
+	mps->close_when_inactive =
+		obs_data_get_bool(settings, S_FFMPEG_CLOSE_WHEN_INACTIVE);
+	obs_data_t *media_source_settings = obs_data_create();
+	obs_data_set_bool(media_source_settings, S_FFMPEG_CLOSE_WHEN_INACTIVE,
+			  mps->close_when_inactive);
+	obs_data_set_int(media_source_settings, S_SPEED, mps->speed);
+	obs_source_update(mps->current_media_source, media_source_settings);
+	obs_data_release(media_source_settings);
 
 	array = obs_data_get_array(settings, S_PLAYLIST);
 	count = obs_data_array_count(array);
@@ -1321,7 +1370,6 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	/* So Current File Name is updated */
 	update_current_filename_setting(mps, settings);
-	obs_source_update_properties(mps->source);
 	/* ------------------------- */
 
 	//if (mps->files.num) {
@@ -1334,7 +1382,6 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	//	obs_source_media_started(mps->source);
 	//}
-	obs_data_release(media_source_settings);
 	obs_data_array_release(array);
 }
 
