@@ -62,6 +62,7 @@ struct media_playlist_source {
 	// to know if current_folder_item_index will be used, check if current file is a folder
 	size_t current_folder_item_index;
 	size_t last_id_count;
+	long long speed;
 
 	obs_hotkey_id play_pause_hotkey;
 	obs_hotkey_id restart_hotkey;
