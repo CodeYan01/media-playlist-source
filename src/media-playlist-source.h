@@ -23,7 +23,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <util/platform.h>
 #include <util/darray.h>
 #include <util/dstr.h>
-#include <util/circlebuf.h>
+#include <util/deque.h>
 #include <plugin-support.h>
 #include "playlist.h"
 #include "shuffler.h"
@@ -74,9 +74,9 @@ struct media_playlist_source {
 	enum visibility_behavior visibility_behavior;
 	enum restart_behavior restart_behavior;
 
-	struct circlebuf audio_data[MAX_AUDIO_CHANNELS];
-	struct circlebuf audio_frames;
-	struct circlebuf audio_timestamps;
+	struct deque audio_data[MAX_AUDIO_CHANNELS];
+	struct deque audio_frames;
+	struct deque audio_timestamps;
 	size_t num_channels;
 	pthread_mutex_t audio_mutex;
 };
