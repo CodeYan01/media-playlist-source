@@ -368,13 +368,12 @@ void mps_audio_callback(void *data, obs_source_t *source,
 	pthread_mutex_lock(&mps->audio_mutex);
 	size_t size = audio_data->frames * sizeof(float);
 	for (size_t i = 0; i < mps->num_channels; i++) {
-		circlebuf_push_back(&mps->audio_data[i], audio_data->data[i],
-				    size);
+		deque_push_back(&mps->audio_data[i], audio_data->data[i], size);
 	}
-	circlebuf_push_back(&mps->audio_frames, &audio_data->frames,
-			    sizeof(audio_data->frames));
-	circlebuf_push_back(&mps->audio_timestamps, &audio_data->timestamp,
-			    sizeof(audio_data->timestamp));
+	deque_push_back(&mps->audio_frames, &audio_data->frames,
+			sizeof(audio_data->frames));
+	deque_push_back(&mps->audio_timestamps, &audio_data->timestamp,
+			sizeof(audio_data->timestamp));
 	pthread_mutex_unlock(&mps->audio_mutex);
 }
 
@@ -709,10 +708,10 @@ static void mps_destroy(void *data)
 	shuffler_destroy(&mps->shuffler);
 	free_files(&mps->files.da);
 	for (size_t i = 0; i < MAX_AUDIO_CHANNELS; i++) {
-		circlebuf_free(&mps->audio_data[i]);
+		deque_free(&mps->audio_data[i]);
 	}
-	circlebuf_free(&mps->audio_frames);
-	circlebuf_free(&mps->audio_timestamps);
+	deque_free(&mps->audio_frames);
+	deque_free(&mps->audio_timestamps);
 	pthread_mutex_destroy(&mps->mutex);
 	pthread_mutex_destroy(&mps->audio_mutex);
 	bfree(mps->current_media_filename);
@@ -851,18 +850,18 @@ static void mps_video_tick(void *data, float seconds)
 		audio.format = aoi->format;
 		audio.samples_per_sec = aoi->samples_per_sec;
 		audio.speakers = aoi->speakers;
-		circlebuf_pop_front(&mps->audio_frames, &audio.frames,
-				    sizeof(audio.frames));
-		circlebuf_pop_front(&mps->audio_timestamps, &audio.timestamp,
-				    sizeof(audio.timestamp));
+		deque_pop_front(&mps->audio_frames, &audio.frames,
+				sizeof(audio.frames));
+		deque_pop_front(&mps->audio_timestamps, &audio.timestamp,
+				sizeof(audio.timestamp));
 		for (size_t i = 0; i < mps->num_channels; i++) {
 			audio.data[i] = (uint8_t *)mps->audio_data[i].data +
 					mps->audio_data[i].start_pos;
 		}
 		obs_source_output_audio(mps->source, &audio);
 		for (size_t i = 0; i < mps->num_channels; i++) {
-			circlebuf_pop_front(&mps->audio_data[i], NULL,
-					    audio.frames * sizeof(float));
+			deque_pop_front(&mps->audio_data[i], NULL,
+					audio.frames * sizeof(float));
 		}
 	}
 	mps->num_channels = audio_output_get_channels(a);
