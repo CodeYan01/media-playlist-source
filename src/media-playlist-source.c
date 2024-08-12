@@ -748,6 +748,7 @@ static void *mps_create(obs_data_t *settings, obs_source_t *source)
 
 	struct media_playlist_source *mps = bzalloc(sizeof(*mps));
 
+	mps->first_update = true;
 	mps->source = source;
 
 	shuffler_init(&mps->shuffler);
@@ -766,7 +767,6 @@ static void *mps_create(obs_data_t *settings, obs_source_t *source)
 	signal_handler_connect(sh_media_source, "media_ended",
 			       media_source_ended, mps);
 
-	mps->last_id_count = 0;
 	mps->paused = false;
 
 	mps->play_pause_hotkey = obs_hotkey_register_source(
@@ -1201,7 +1201,6 @@ static void mps_update(void *data, obs_data_t *settings)
 	bool shuffle = false;
 	bool shuffle_changed = false;
 	bool item_edited = false;
-	bool first_update = false;
 	const char *old_media_path = NULL;
 	long long new_speed;
 	//const char *mode;
@@ -1238,10 +1237,10 @@ static void mps_update(void *data, obs_data_t *settings)
 	array = obs_data_get_array(settings, S_PLAYLIST);
 	count = obs_data_array_count(array);
 
-	if (!first_update && mps->current_media) {
+	if (!mps->first_update && mps->current_media) {
 		old_media_path = mps->current_media->path;
 	}
-	if (first_update) {
+	if (mps->first_update) {
 		mps->current_media_filename = bstrdup(obs_data_get_string(
 			settings, S_CURRENT_FOLDER_ITEM_FILENAME));
 		mps->current_media_index =
@@ -1260,7 +1259,7 @@ static void mps_update(void *data, obs_data_t *settings)
 			continue;
 		}
 
-		if (!first_update && mps->current_media &&
+		if (!mps->first_update && mps->current_media &&
 			   strcmp(id, mps->current_media->id) == 0) {
 			// check for current_media->id only if media isn't changed, allowing scripts to set the index.
 			mps->current_media_index = i;
@@ -1292,7 +1291,7 @@ static void mps_update(void *data, obs_data_t *settings)
 
 	free_files(&old_files.da);
 
-	if (found || first_update) {
+	if (found || mps->first_update) {
 		set_current_media_index(mps, mps->current_media_index);
 	} else {
 		set_current_media_index(mps, 0);
@@ -1336,7 +1335,7 @@ static void mps_update(void *data, obs_data_t *settings)
 						mps->actual_media);
 		}
 
-		if (first_update || !found || item_edited) {
+		if (mps->first_update || !found || item_edited) {
 			/* Clear if last file is a folder and is empty */
 			if (mps->current_media->is_folder &&
 			    mps->current_media->folder_items.num == 0) {
@@ -1345,7 +1344,7 @@ static void mps_update(void *data, obs_data_t *settings)
 				update_media_source(mps, true);
 			}
 		}
-	} else if (!first_update) {
+	} else if (!mps->first_update) {
 		bfree(mps->current_media_filename);
 		mps->current_media_filename = NULL;
 		clear_media_source(mps);
@@ -1368,6 +1367,7 @@ static void mps_update(void *data, obs_data_t *settings)
 	//	obs_source_media_started(mps->source);
 	//}
 	obs_data_array_release(array);
+	mps->first_update = false;
 }
 
 static void mps_save(void *data, obs_data_t *settings)
