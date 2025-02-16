@@ -29,5 +29,5 @@ struct media_file_data {
 	DARRAY(struct media_file_data) folder_items;
 	struct media_file_data *parent;
 	const char *parent_id; // for folder items
-	size_t index;     // makes it easier to switch back to non-shuffle mode
+	size_t index;          // makes it easier to switch back to non-shuffle mode
 };

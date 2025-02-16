@@ -62,8 +62,7 @@ void shuffler_reshuffle(struct shuffler *s)
 	s->history = s->shuffled_files.num;
 }
 
-static inline void shuffler_determine_one_(struct shuffler *s,
-					   size_t avoid_last_n)
+static inline void shuffler_determine_one_(struct shuffler *s, size_t avoid_last_n)
 {
 	assert(s->head < s->shuffled_files.num);
 	assert(s->shuffled_files.num - s->head > avoid_last_n);
@@ -107,22 +106,18 @@ bool shuffler_has_prev(struct shuffler *s)
 
 	/* there is no previous only if (current - history) == 0 (modulo size),
      * i.e. (next - history) == 1 (modulo size) */
-	return (s->next + s->shuffled_files.num - s->history) %
-		       s->shuffled_files.num !=
-	       1;
+	return (s->next + s->shuffled_files.num - s->history) % s->shuffled_files.num != 1;
 }
 
 bool shuffler_has_next(struct shuffler *s)
 {
-	return s->shuffled_files.num &&
-	       (s->loop || s->next < s->shuffled_files.num);
+	return s->shuffled_files.num && (s->loop || s->next < s->shuffled_files.num);
 }
 
 struct media_file_data *shuffler_peek_prev(struct shuffler *s)
 {
 	assert(shuffler_has_prev(s));
-	size_t index =
-		(s->next + s->shuffled_files.num - 2) % s->shuffled_files.num;
+	size_t index = (s->next + s->shuffled_files.num - 2) % s->shuffled_files.num;
 	return s->shuffled_files.array[index];
 }
 
@@ -160,8 +155,7 @@ struct media_file_data *shuffler_next(struct shuffler *s)
 	return item;
 }
 
-bool shuffler_add(struct shuffler *s, struct media_file_data items[],
-		  size_t count)
+bool shuffler_add(struct shuffler *s, struct media_file_data items[], size_t count)
 {
 	for (size_t i = 0; i < count; i++) {
 		struct media_file_data *ptr = &items[i];
@@ -179,8 +173,7 @@ static void shuffler_select_index(struct shuffler *s, size_t index)
 	struct media_file_data *selected = s->shuffled_files.array[index];
 	if (s->history && index >= s->history) {
 		if (index > s->history) {
-			memmove(&s->shuffled_files.array[s->history + 1],
-				&s->shuffled_files.array[s->history],
+			memmove(&s->shuffled_files.array[s->history + 1], &s->shuffled_files.array[s->history],
 				(index - s->history) * sizeof(selected));
 			index = s->history;
 		}
@@ -188,13 +181,11 @@ static void shuffler_select_index(struct shuffler *s, size_t index)
 	}
 
 	if (index >= s->head) {
-		s->shuffled_files.array[index] =
-			s->shuffled_files.array[s->head];
+		s->shuffled_files.array[index] = s->shuffled_files.array[s->head];
 		s->shuffled_files.array[s->head] = selected;
 		s->head++;
 	} else if (index < s->shuffled_files.num - 1) {
-		memmove(&s->shuffled_files.array[index],
-			&s->shuffled_files.array[index + 1],
+		memmove(&s->shuffled_files.array[index], &s->shuffled_files.array[index + 1],
 			(s->head - index - 1) * sizeof(selected));
 		s->shuffled_files.array[s->head - 1] = selected;
 	}
@@ -230,43 +221,36 @@ static void shuffler_remove_at(struct shuffler *s, size_t index)
 
 	if (index < s->head) {
 		/* item was selected, keep the selected part ordered */
-		memmove(&s->shuffled_files.array[index],
-			&s->shuffled_files.array[index + 1],
-			(s->head - index - 1) *
-				sizeof(*s->shuffled_files.array));
+		memmove(&s->shuffled_files.array[index], &s->shuffled_files.array[index + 1],
+			(s->head - index - 1) * sizeof(*s->shuffled_files.array));
 		s->head--;
 		index = s->head; /* the new index to remove */
 	}
 
 	if (index < s->history) {
 		/* this part is unordered, no need to shift all items */
-		s->shuffled_files.array[index] =
-			s->shuffled_files.array[s->history - 1];
+		s->shuffled_files.array[index] = s->shuffled_files.array[s->history - 1];
 		index = s->history - 1;
 		s->history--;
 	}
 
 	if (index < s->shuffled_files.num - 1) {
 		/* shift the ordered history part by one */
-		memmove(&s->shuffled_files.array[index],
-			&s->shuffled_files.array[index + 1],
-			(s->shuffled_files.num - index - 1) *
-				sizeof(*s->shuffled_files.array));
+		memmove(&s->shuffled_files.array[index], &s->shuffled_files.array[index + 1],
+			(s->shuffled_files.num - index - 1) * sizeof(*s->shuffled_files.array));
 	}
 
 	s->shuffled_files.num--;
 }
 
-static void shuffler_remove_one(struct shuffler *s,
-				const struct media_file_data *item)
+static void shuffler_remove_one(struct shuffler *s, const struct media_file_data *item)
 {
 	size_t index = da_find(s->shuffled_files, &item, 0);
 	assert(index >= 0 && index != DARRAY_INVALID); /* item must exist */
 	shuffler_remove_at(s, index);
 }
 
-void shuffler_remove(struct shuffler *s, struct media_file_data *const items[],
-		     size_t count)
+void shuffler_remove(struct shuffler *s, struct media_file_data *const items[], size_t count)
 {
 	for (size_t i = 0; i < count; ++i)
 		shuffler_remove_one(s, items[i]);
@@ -302,8 +286,7 @@ void build_shuffled_files(struct darray *src, struct darray *dst)
 	*dst = dst_files.da;
 }
 
-size_t find_media_index(struct darray *array,
-			struct media_file_data *search_data, size_t offset)
+size_t find_media_index(struct darray *array, struct media_file_data *search_data, size_t offset)
 {
 	DARRAY(struct media_file_data *) files;
 	files.da = *array;
@@ -323,8 +306,7 @@ size_t find_media_index(struct darray *array,
 			 */
 
 			if (strcmp(current_data->parent_id, search_data->parent_id) == 0) {
-				int match = strcmp(search_data->filename,
-						   current_data->filename);
+				int match = strcmp(search_data->filename, current_data->filename);
 				if (match == 0) {
 					return i;
 				}
@@ -356,13 +338,10 @@ void shuffler_update_files(struct shuffler *s, struct darray *array)
 
 			// Find determined media
 			for (size_t i = 0; i < s->head; i++) {
-				struct media_file_data *old_data =
-					s->shuffled_files.array[i];
-				size_t new_idx = find_media_index(
-					&shuffled_files.da, old_data, new_head);
+				struct media_file_data *old_data = s->shuffled_files.array[i];
+				size_t new_idx = find_media_index(&shuffled_files.da, old_data, new_head);
 				if (new_idx != DARRAY_INVALID) {
-					da_swap(shuffled_files, new_head++,
-						new_idx);
+					da_swap(shuffled_files, new_head++, new_idx);
 				} else {
 					if (i < s->next)
 						new_next--;
@@ -370,15 +349,11 @@ void shuffler_update_files(struct shuffler *s, struct darray *array)
 			}
 			// history can never be lower than head, it represents the first
 			// element of the previous cycle history
-			for (size_t i = s->shuffled_files.num - 1;
-			     i >= s->history; i--) {
-				struct media_file_data *old_data =
-					s->shuffled_files.array[i];
-				size_t new_idx = find_media_index(
-					&shuffled_files.da, old_data, new_head);
+			for (size_t i = s->shuffled_files.num - 1; i >= s->history; i--) {
+				struct media_file_data *old_data = s->shuffled_files.array[i];
+				size_t new_idx = find_media_index(&shuffled_files.da, old_data, new_head);
 				if (new_idx != DARRAY_INVALID) {
-					da_swap(shuffled_files, --new_history,
-						new_idx);
+					da_swap(shuffled_files, --new_history, new_idx);
 				} else {
 					if (i < s->next)
 						new_next--;
@@ -398,8 +373,7 @@ void shuffler_update_files(struct shuffler *s, struct darray *array)
 
 #ifdef TEST_SHUFFLER
 #include <util/dstr.h>
-static void ArrayInitOffset(struct darray *main_array, size_t len,
-			    size_t offset)
+static void ArrayInitOffset(struct darray *main_array, size_t len, size_t offset)
 {
 	DARRAY(struct media_file_data) main_files;
 	main_files.da = *main_array;
@@ -417,8 +391,7 @@ static void ArrayInitOffset(struct darray *main_array, size_t len,
 	*main_array = main_files.da;
 }
 
-static void ArrayCreateFolderItems(struct media_file_data *media, size_t len,
-				   size_t offset)
+static void ArrayCreateFolderItems(struct media_file_data *media, size_t len, size_t offset)
 {
 	media->is_folder = true;
 	for (size_t i = offset; i < len + offset; i++) {
@@ -453,11 +426,9 @@ static void ArrayDeepCopy(struct darray *src, struct darray *dst)
 		da_init(media->folder_items);
 		da_copy(media->folder_items, orig.array[i].folder_items);
 		for (size_t j = 0; j < media->folder_items.num; j++) {
-			struct media_file_data *folder_item =
-				&media->folder_items.array[j];
+			struct media_file_data *folder_item = &media->folder_items.array[j];
 			if (folder_item->filename) {
-				folder_item->filename =
-					bstrdup(folder_item->filename);
+				folder_item->filename = bstrdup(folder_item->filename);
 			}
 		}
 	}
@@ -500,12 +471,10 @@ static void ArrayDestroy(struct darray *array)
 /* Unlike in vlc, the shuffler files are recreated every time the properties
  * are changed, so we can't just do pointer equality tests. 
  */
-static bool media_equal(struct media_file_data *data1,
-			struct media_file_data *data2)
+static bool media_equal(struct media_file_data *data1, struct media_file_data *data2)
 {
 	if (data1->parent_id) {
-		return strcmp(data1->parent_id, data2->parent_id) == 0 &&
-		       strcmp(data1->filename, data2->filename) == 0;
+		return strcmp(data1->parent_id, data2->parent_id) == 0 && strcmp(data1->filename, data2->filename) == 0;
 	} else {
 		return strcmp(data1->id, data2->id) == 0;
 	}
@@ -567,8 +536,7 @@ static void test_all_items_selected_exactly_once_per_cycle(void)
 			selected[item->index] = true;
 		}
 
-		assert(shuffler_has_next(
-			&shuffler)); /* still has items in loop */
+		assert(shuffler_has_next(&shuffler)); /* still has items in loop */
 
 		for (int i = 0; i < SIZE; ++i)
 			assert(selected[i]); /* all selected */
@@ -645,11 +613,9 @@ static void test_all_items_selected_exactly_once_with_removals(void)
 
 	struct media_file_data *to_remove[20];
 	/* copy 10 items already selected */
-	memcpy(to_remove, &shuffler.shuffled_files.array[20],
-	       10 * sizeof(*to_remove));
+	memcpy(to_remove, &shuffler.shuffled_files.array[20], 10 * sizeof(*to_remove));
 	/* copy 10 items not already selected */
-	memcpy(&to_remove[10], &shuffler.shuffled_files.array[70],
-	       10 * sizeof(*to_remove));
+	memcpy(&to_remove[10], &shuffler.shuffled_files.array[70], 10 * sizeof(*to_remove));
 
 	shuffler_remove(&shuffler, to_remove, 20);
 
@@ -727,11 +693,9 @@ static void test_cycle_with_additions_and_removals(void)
 
 	struct media_file_data *to_remove[20];
 	/* copy 10 items already selected */
-	memcpy(to_remove, &shuffler.shuffled_files.array[15],
-	       10 * sizeof(*to_remove));
+	memcpy(to_remove, &shuffler.shuffled_files.array[15], 10 * sizeof(*to_remove));
 	/* copy 10 items not already selected */
-	memcpy(&to_remove[10], &shuffler.shuffled_files.array[60],
-	       10 * sizeof(*to_remove));
+	memcpy(&to_remove[10], &shuffler.shuffled_files.array[60], 10 * sizeof(*to_remove));
 
 	shuffler_remove(&shuffler, to_remove, 20);
 
@@ -754,8 +718,7 @@ static void test_cycle_with_additions_and_removals(void)
 
 	/* save current history */
 	struct media_file_data *history[59];
-	memcpy(history, &shuffler.shuffled_files.array[1],
-	       59 * sizeof(*history));
+	memcpy(history, &shuffler.shuffled_files.array[1], 59 * sizeof(*history));
 
 	/* insert 20 new items */
 	ok = shuffler_add(&shuffler, &items.array[80], 20);
@@ -768,8 +731,7 @@ static void test_cycle_with_additions_and_removals(void)
 		assert(history[i] == shuffler.shuffled_files.array[21 + i]);
 
 	/* remove 10 items in the history part */
-	memcpy(to_remove, &shuffler.shuffled_files.array[30],
-	       10 * sizeof(*to_remove));
+	memcpy(to_remove, &shuffler.shuffled_files.array[30], 10 * sizeof(*to_remove));
 	shuffler_remove(&shuffler, to_remove, 10);
 
 	assert(shuffler.shuffled_files.num == 70);
@@ -779,8 +741,7 @@ static void test_cycle_with_additions_and_removals(void)
 	for (int i = 0; i < 9; ++i)
 		assert(history[i] == shuffler.shuffled_files.array[21 + i]);
 	for (int i = 0; i < 40; ++i)
-		assert(history[i + 19] ==
-		       shuffler.shuffled_files.array[30 + i]);
+		assert(history[i + 19] == shuffler.shuffled_files.array[30 + i]);
 
 	shuffler_destroy(&shuffler);
 	da_free(items);
@@ -811,8 +772,7 @@ static void test_force_select_new_item(void)
 			item = shuffler.shuffled_files.array[62];
 			shuffler_select(&shuffler, item);
 			/* the item should now be the last selected one */
-			assert(shuffler.shuffled_files
-				       .array[shuffler.next - 1] == item);
+			assert(shuffler.shuffled_files.array[shuffler.next - 1] == item);
 		}
 		assert(item);
 		assert(!selected[item->index]); /* never selected twice */
@@ -853,8 +813,7 @@ static void test_force_select_item_already_selected(void)
 			item = shuffler.shuffled_files.array[42];
 			shuffler_select(&shuffler, item);
 			/* the item should now be the last selected one */
-			assert(shuffler.shuffled_files
-				       .array[shuffler.next - 1] == item);
+			assert(shuffler.shuffled_files.array[shuffler.next - 1] == item);
 		}
 		assert(item);
 		/* never selected twice, except for item 50 */
@@ -1066,8 +1025,7 @@ static void test_loop_respect_not_same_before(void)
 		for (int i = 0; i < NOT_SAME_BEFORE; ++i) {
 			assert(shuffler_has_next(&shuffler));
 			actual[i] = shuffler_next(&shuffler);
-			for (int j = (i + SIZE - NOT_SAME_BEFORE) % SIZE;
-			     j != i; j = (j + 1) % SIZE) {
+			for (int j = (i + SIZE - NOT_SAME_BEFORE) % SIZE; j != i; j = (j + 1) % SIZE) {
 				assert(actual[i] != actual[j]);
 			}
 		}
@@ -1151,8 +1109,7 @@ static void test_update_files_with_additions_and_removals(void)
 		assert(shuffler_has_next(&shuffler));
 		shuffler_select_index(&shuffler, i);
 		assert(shuffler.next == i + 1);
-		struct media_file_data *item =
-			shuffler.shuffled_files.array[shuffler.next - 1];
+		struct media_file_data *item = shuffler.shuffled_files.array[shuffler.next - 1];
 		assert(item);
 	}
 
@@ -1186,8 +1143,7 @@ static void test_update_files_with_additions_and_removals(void)
 
 	/* save current history */
 	struct media_file_data *history[59];
-	memcpy(history, &shuffler.shuffled_files.array[1],
-	       59 * sizeof(*history));
+	memcpy(history, &shuffler.shuffled_files.array[1], 59 * sizeof(*history));
 
 	/* insert 20 new items */
 	da_push_back_array(items, &all_items.array[80], 20);
@@ -1213,11 +1169,9 @@ static void test_update_files_with_additions_and_removals(void)
 
 	/* the other items in the history must be kept in order */
 	for (int i = 0; i < 9; ++i)
-		assert(strcmp(history[i]->id,
-		       shuffler.shuffled_files.array[21 + i]->id) == 0);
+		assert(strcmp(history[i]->id, shuffler.shuffled_files.array[21 + i]->id) == 0);
 	for (int i = 0; i < 40; ++i)
-		assert(strcmp(history[i + 19]->id,
-		       shuffler.shuffled_files.array[30 + i]->id) == 0);
+		assert(strcmp(history[i + 19]->id, shuffler.shuffled_files.array[30 + i]->id) == 0);
 
 	shuffler_destroy(&shuffler);
 	da_free(items);
@@ -1308,8 +1262,7 @@ static void test_update_files_folders_with_additions_and_removals(void)
 	assert(shuffler.history == 7); // 6 new items
 
 	for (int i = 0; i < 73; ++i) {
-		assert(media_equal(history.array[i],
-				   shuffler.shuffled_files.array[7 + i]));
+		assert(media_equal(history.array[i], shuffler.shuffled_files.array[7 + i]));
 	}
 	ArrayDestroy(&items2.da);
 
@@ -1332,11 +1285,9 @@ static void test_update_files_folders_with_additions_and_removals(void)
 
 	/* the other items in the history must be kept in order */
 	for (int i = 7; i < 50; ++i)
-		assert(media_equal(history.array[i],
-				   shuffler.shuffled_files.array[i]));
+		assert(media_equal(history.array[i], shuffler.shuffled_files.array[i]));
 	for (int i = 61; i < 80; ++i)
-		assert(media_equal(history.array[i],
-				   shuffler.shuffled_files.array[i - 10]));
+		assert(media_equal(history.array[i], shuffler.shuffled_files.array[i - 10]));
 	ArrayDestroy(&items2.da);
 
 	shuffler_destroy(&shuffler);
