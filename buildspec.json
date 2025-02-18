@@ -41,5 +41,8 @@
     "version": "0.1.0",
     "author": "Ian Rodriguez",
     "website": "https://github.com/CodeYan01/media-playlist-source",
-    "email": "ianlemuelr@gmail.com"
+    "email": "ianlemuelr@gmail.com",
+    "uuids": {
+        "windowsApp": "22B0D7BD-767F-45FD-901C-4D6EAB4EF875"
+    }
 }
