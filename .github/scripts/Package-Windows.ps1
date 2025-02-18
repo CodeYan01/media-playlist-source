@@ -3,7 +3,8 @@ param(
     [ValidateSet('x64')]
     [string] $Target = 'x64',
     [ValidateSet('Debug', 'RelWithDebInfo', 'Release', 'MinSizeRel')]
-    [string] $Configuration = 'RelWithDebInfo'
+    [string] $Configuration = 'RelWithDebInfo',
+    [switch] $BuildInstaller = $false
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,6 +54,7 @@ function Package {
         ErrorAction = 'SilentlyContinue'
         Path = @(
             "${ProjectRoot}/release/${ProductName}-*-windows-*.zip"
+            "${ProjectRoot}/release/${ProductName}-*-windows-*.exe"
         )
     }
 
@@ -67,6 +69,24 @@ function Package {
     }
     Compress-Archive -Force @CompressArgs
     Log-Group
+
+    if ( ( $BuildInstaller ) ) {
+        $IsccFile = "${ProjectRoot}/build_${Target}/installer-Windows.generated.iss"
+
+        if ( ! ( Test-Path -Path $IsccFile ) ) {
+            throw 'InnoSetup install script not found. Run the build script or the CMake build and install procedures first.'
+        }
+
+        Log-Information 'Creating InnoSetup installer...'
+        Push-Location -Stack BuildTemp
+        Ensure-Location -Path "${ProjectRoot}/release"
+        Copy-Item -Path ${Configuration} -Destination Package -Recurse
+        Invoke-External iscc ${IsccFile} /O"${ProjectRoot}/release" /F"${OutputName}-Installer"
+        Remove-Item -Path Package -Recurse
+        Pop-Location -Stack BuildTemp
+
+        Log-Group
+    }
 }
 
 Package
