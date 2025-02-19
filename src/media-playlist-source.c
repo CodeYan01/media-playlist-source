@@ -1268,6 +1268,7 @@ static void mps_save(void *data, obs_data_t *settings)
 	struct media_playlist_source *mps = data;
 	obs_data_set_int(settings, S_CURRENT_MEDIA_INDEX, mps->current_media_index);
 	obs_data_set_string(settings, S_CURRENT_FOLDER_ITEM_FILENAME, mps->current_media_filename);
+	update_current_filename_setting(mps, settings);
 }
 
 static void mps_load(void *data, obs_data_t *settings)
