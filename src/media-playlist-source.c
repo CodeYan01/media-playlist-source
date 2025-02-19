@@ -37,6 +37,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define S_FFMPEG_LOCAL_FILE "local_file"
 #define S_FFMPEG_INPUT "input"
 #define S_FFMPEG_IS_LOCAL_FILE "is_local_file"
+#define S_FFMPEG_HW_DECODE "hw_decode"
 #define S_FFMPEG_CLOSE_WHEN_INACTIVE "close_when_inactive"
 
 #define T_(text) obs_module_text(text)
@@ -53,6 +54,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define T_CURRENT_FILE_NAME T_("CurrentFileName")
 #define T_SELECT_FILE T_("SelectFile")
 #define T_NO_FILE_SELECTED T_("NoFileSelected")
+#define T_USE_HARDWARE_DECODING T_("UseHardwareDecoding")
 #define T_FFMPEG_CLOSE_WHEN_INACTIVE T_("CloseFileWhenInactive")
 #define T_FFMPEG_CLOSE_WHEN_INACTIVE_TOOLTIP T_("CloseFileWhenInactive.Tooltip")
 #define T_SPEED T_("Speed")
@@ -986,6 +988,8 @@ static obs_properties_t *mps_properties(void *data)
 	obs_property_list_add_int(p, T_RESTART_BEHAVIOR_CURRENT_FILE, RESTART_BEHAVIOR_CURRENT_FILE);
 	obs_property_list_add_int(p, T_RESTART_BEHAVIOR_FIRST_FILE, RESTART_BEHAVIOR_FIRST_FILE);
 
+	obs_properties_add_bool(props, S_FFMPEG_HW_DECODE, T_USE_HARDWARE_DECODING);
+
 	p = obs_properties_add_bool(props, S_FFMPEG_CLOSE_WHEN_INACTIVE, T_FFMPEG_CLOSE_WHEN_INACTIVE);
 	obs_property_set_long_description(p, T_FFMPEG_CLOSE_WHEN_INACTIVE_TOOLTIP);
 
@@ -1133,8 +1137,10 @@ static void mps_update(void *data, obs_data_t *settings)
 	mps->speed = new_speed;
 
 	/* Internal media source settings */
+	mps->use_hw_decoding = obs_data_get_bool(settings, S_FFMPEG_HW_DECODE);
 	mps->close_when_inactive = obs_data_get_bool(settings, S_FFMPEG_CLOSE_WHEN_INACTIVE);
 	obs_data_t *media_source_settings = obs_data_create();
+	obs_data_set_bool(media_source_settings, S_FFMPEG_HW_DECODE, mps->use_hw_decoding);
 	obs_data_set_bool(media_source_settings, S_FFMPEG_CLOSE_WHEN_INACTIVE, mps->close_when_inactive);
 	obs_data_set_int(media_source_settings, S_SPEED, mps->speed);
 	obs_source_update(mps->current_media_source, media_source_settings);
