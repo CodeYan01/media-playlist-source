@@ -48,6 +48,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define T_VISIBILITY_BEHAVIOR_STOP_RESTART T_("VisibilityBehavior.StopRestart")
 #define T_VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE T_("VisibilityBehavior.PauseUnpause")
 #define T_VISIBILITY_BEHAVIOR_ALWAYS_PLAY T_("VisibilityBehavior.AlwaysPlay")
+#define T_VISIBILITY_BEHAVIOR_STOP_PLAY_NEXT T_("VisibilityBehavior.StopPlayNext")
 #define T_RESTART_BEHAVIOR T_("RestartBehavior")
 #define T_RESTART_BEHAVIOR_CURRENT_FILE T_("RestartBehavior.CurrentFile")
 #define T_RESTART_BEHAVIOR_FIRST_FILE T_("RestartBehavior.FirstFile")
@@ -666,6 +667,8 @@ static void mps_activate(void *data)
 		obs_source_media_restart(mps->source);
 	} else if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE) {
 		obs_source_media_play_pause(mps->source, false);
+	} else if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_PLAY_NEXT) {
+		obs_source_media_next(mps->source);
 	}
 }
 
@@ -673,7 +676,8 @@ static void mps_deactivate(void *data)
 {
 	struct media_playlist_source *mps = data;
 
-	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_RESTART) {
+	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_RESTART ||
+	    mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_PLAY_NEXT) {
 		obs_source_media_stop(mps->source);
 	} else if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE) {
 		obs_source_media_play_pause(mps->source, true);
@@ -980,6 +984,7 @@ static obs_properties_t *mps_properties(void *data)
 	p = obs_properties_add_list(props, S_VISIBILITY_BEHAVIOR, T_VISIBILITY_BEHAVIOR, OBS_COMBO_TYPE_LIST,
 				    OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(p, T_VISIBILITY_BEHAVIOR_STOP_RESTART, VISIBILITY_BEHAVIOR_STOP_RESTART);
+	obs_property_list_add_int(p, T_VISIBILITY_BEHAVIOR_STOP_PLAY_NEXT, VISIBILITY_BEHAVIOR_STOP_PLAY_NEXT);
 	obs_property_list_add_int(p, T_VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE, VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE);
 	obs_property_list_add_int(p, T_VISIBILITY_BEHAVIOR_ALWAYS_PLAY, VISIBILITY_BEHAVIOR_ALWAYS_PLAY);
 
