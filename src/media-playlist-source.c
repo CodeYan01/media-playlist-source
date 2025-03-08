@@ -39,6 +39,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #define S_FFMPEG_IS_LOCAL_FILE "is_local_file"
 #define S_FFMPEG_HW_DECODE "hw_decode"
 #define S_FFMPEG_CLOSE_WHEN_INACTIVE "close_when_inactive"
+#define S_FFMPEG_RESTART_ON_ACTIVATE "restart_on_activate"
 
 #define T_(text) obs_module_text(text)
 #define T_PLAYLIST T_("Playlist")
@@ -335,6 +336,9 @@ static void media_source_ended(void *data, calldata_t *cd)
 	/* In OBS 29.1.3 and below, stopping a currently playing media source triggers
 	 * both the STOPPED and ENDED signals. In the future, it should actually just
 	 * be STOPPED. TODO: Remove `user_stopped` if PR #9218 gets merged.
+	 *
+	 * EDIT: Tested in OBS 31, now problem is deactivate is sending an ENDED signal
+	 * rather than a STOPPED. So in mps_deactivate, we set user_stopped to true
 	 */
 	if (mps->user_stopped) {
 		mps->user_stopped = false;
@@ -663,12 +667,13 @@ static void mps_activate(void *data)
 	if (!mps->files.num)
 		return;
 
+	mps->user_stopped = true;
 	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_RESTART) {
 		obs_source_media_restart(mps->source);
 	} else if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE) {
 		obs_source_media_play_pause(mps->source, false);
 	} else if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_PLAY_NEXT) {
-		obs_source_media_next(mps->source);
+		// we only play next when the source is deactivated so we don't do anything here
 	}
 }
 
@@ -676,11 +681,15 @@ static void mps_deactivate(void *data)
 {
 	struct media_playlist_source *mps = data;
 
-	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_RESTART ||
-	    mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_PLAY_NEXT) {
+	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_RESTART) {
+		mps->user_stopped = true;
 		obs_source_media_stop(mps->source);
 	} else if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE) {
 		obs_source_media_play_pause(mps->source, true);
+	} else if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_PLAY_NEXT) {
+		mps->user_stopped = true;
+		obs_source_media_stop(mps->source);
+		obs_source_media_next(mps->source);
 	}
 }
 
@@ -1118,7 +1127,10 @@ static void mps_update(void *data, obs_data_t *settings)
 	size_t count;
 	bool shuffle = false;
 	bool shuffle_changed = false;
+	enum visibility_behavior visibility_behavior = mps->visibility_behavior;
+	bool visibility_behavior_changed = false;
 	bool item_edited = false;
+	bool restart_on_activate = true;
 	const char *old_media_path = NULL;
 	long long new_speed;
 	//const char *mode;
@@ -1129,6 +1141,9 @@ static void mps_update(void *data, obs_data_t *settings)
 	da_init(new_files);
 
 	mps->visibility_behavior = obs_data_get_int(settings, S_VISIBILITY_BEHAVIOR);
+	if (mps->visibility_behavior != visibility_behavior) {
+		visibility_behavior_changed = true;
+	}
 	mps->restart_behavior = obs_data_get_int(settings, S_RESTART_BEHAVIOR);
 	shuffle = obs_data_get_bool(settings, S_SHUFFLE);
 	shuffle_changed = mps->shuffle != shuffle;
@@ -1144,12 +1159,21 @@ static void mps_update(void *data, obs_data_t *settings)
 	/* Internal media source settings */
 	mps->use_hw_decoding = obs_data_get_bool(settings, S_FFMPEG_HW_DECODE);
 	mps->close_when_inactive = obs_data_get_bool(settings, S_FFMPEG_CLOSE_WHEN_INACTIVE);
+	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_ALWAYS_PLAY ||
+	    mps->visibility_behavior == VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE) {
+		restart_on_activate = false;
+	}
 	obs_data_t *media_source_settings = obs_data_create();
+	obs_data_set_bool(media_source_settings, S_FFMPEG_RESTART_ON_ACTIVATE, restart_on_activate);
 	obs_data_set_bool(media_source_settings, S_FFMPEG_HW_DECODE, mps->use_hw_decoding);
 	obs_data_set_bool(media_source_settings, S_FFMPEG_CLOSE_WHEN_INACTIVE, mps->close_when_inactive);
 	obs_data_set_int(media_source_settings, S_SPEED, mps->speed);
 	obs_source_update(mps->current_media_source, media_source_settings);
 	obs_data_release(media_source_settings);
+	mps->state = obs_source_media_get_state(mps->source);
+	if (visibility_behavior_changed && !obs_source_active(mps->source) && (mps->state == OBS_MEDIA_STATE_PLAYING || mps->state == OBS_MEDIA_STATE_PAUSED)) {
+		mps_deactivate(mps);
+	}
 
 	array = obs_data_get_array(settings, S_PLAYLIST);
 	count = obs_data_array_count(array);
