@@ -1171,7 +1171,8 @@ static void mps_update(void *data, obs_data_t *settings)
 	obs_source_update(mps->current_media_source, media_source_settings);
 	obs_data_release(media_source_settings);
 	mps->state = obs_source_media_get_state(mps->source);
-	if (visibility_behavior_changed && !obs_source_active(mps->source) && (mps->state == OBS_MEDIA_STATE_PLAYING || mps->state == OBS_MEDIA_STATE_PAUSED)) {
+	if (visibility_behavior_changed && !obs_source_active(mps->source) &&
+	    (mps->state == OBS_MEDIA_STATE_PLAYING || mps->state == OBS_MEDIA_STATE_PAUSED)) {
 		mps_deactivate(mps);
 	}
 
