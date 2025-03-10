@@ -71,7 +71,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 static inline void set_current_media_index(struct media_playlist_source *mps, size_t index)
 {
-	if (mps->files.num) {
+	if (get_total_file_count(mps) > 0) {
 		if (index >= mps->files.num) {
 			index = 0;
 		}
@@ -80,7 +80,28 @@ static inline void set_current_media_index(struct media_playlist_source *mps, si
 	} else {
 		mps->current_media_index = 0;
 		mps->current_media = NULL;
+		mps->actual_media = NULL;
+		mps->current_folder_item_index = 0;
+		bfree(mps->current_media_filename);
+		mps->current_media_filename = NULL;
 	}
+}
+
+static size_t get_total_file_count(struct media_playlist_source *mps)
+{
+	size_t count = 0;
+	struct media_file_data item;
+
+	for (size_t i = 0; i < mps->files.num; i++) {
+		item = mps->files.array[i];
+		if (item.is_folder) {
+			count += item.folder_items.num;
+		} else {
+			count += 1;
+		}
+	}
+
+	return count;
 }
 
 /* Requires setting current media index first
@@ -257,10 +278,12 @@ static void play_folder_item_at_index(void *data, size_t index)
 static void play_media_at_index(void *data, size_t index, bool play_last_folder_item)
 {
 	struct media_playlist_source *mps = data;
-	if (index >= mps->files.num)
-		return;
-
 	set_current_media_index(mps, index);
+	if (index >= mps->files.num || !mps->actual_media) {
+		clear_media_source(mps);
+		return;
+	}
+
 	if (mps->current_media->is_folder) {
 		if (mps->current_media->folder_items.num) {
 			// when Previous Item is clicked to go back to a folder
@@ -310,7 +333,7 @@ static enum obs_media_state mps_get_state(void *data)
 {
 	struct media_playlist_source *mps = data;
 	enum obs_media_state media_state;
-	if (mps->files.num) {
+	if (get_total_file_count(mps) > 0) {
 		media_state = obs_source_media_get_state(mps->current_media_source);
 	} else {
 		media_state = OBS_MEDIA_STATE_NONE;
@@ -562,6 +585,9 @@ static void mps_playlist_next(void *data)
 	struct media_playlist_source *mps = data;
 	bool last_folder_item_reached = false;
 
+	if (!get_total_file_count(mps))
+		return;
+
 	pthread_mutex_lock(&mps->mutex);
 	if (mps->shuffle) {
 		if (shuffler_has_next(&mps->shuffler)) {
@@ -615,6 +641,9 @@ static void mps_playlist_prev(void *data)
 	struct media_playlist_source *mps = data;
 	bool is_first_folder_item = false;
 
+	if (!get_total_file_count(mps))
+		return;
+
 	pthread_mutex_lock(&mps->mutex);
 	if (mps->shuffle) {
 		if (shuffler_has_prev(&mps->shuffler)) {
@@ -664,7 +693,7 @@ end:
 static void mps_activate(void *data)
 {
 	struct media_playlist_source *mps = data;
-	if (!mps->files.num)
+	if (!get_total_file_count(mps))
 		return;
 
 	mps->user_stopped = true;
@@ -1239,7 +1268,7 @@ static void mps_update(void *data, obs_data_t *settings)
 		set_current_media_index(mps, 0);
 	}
 
-	if (mps->files.num) {
+	if (get_total_file_count(mps)) {
 		if (item_edited) {
 			mps->current_folder_item_index = 0;
 		} else if (mps->current_media && mps->current_media->is_folder) {
@@ -1281,7 +1310,6 @@ static void mps_update(void *data, obs_data_t *settings)
 		bfree(mps->current_media_filename);
 		mps->current_media_filename = NULL;
 		clear_media_source(mps);
-		mps->actual_media = NULL;
 	}
 	obs_source_save(mps->source);
 

@@ -89,6 +89,7 @@ static const char *video_filter = " (*.mp4 *.mpg *.m4v *.ts *.mov *.mxf *.flv *.
 static const char *audio_filter = " (*.mp3 *.m4a *.mka *.aac *.ogg *.wav *.opus *.flac);;";
 
 static void set_current_media_index(struct media_playlist_source *mps, size_t index);
+static size_t get_total_file_count(struct media_playlist_source *mps);
 
 static inline void reset_folder_item_index(struct media_playlist_source *mps);
 
