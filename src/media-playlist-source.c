@@ -774,7 +774,11 @@ error:
 static void mps_video_render(void *data, gs_effect_t *effect)
 {
 	struct media_playlist_source *mps = data;
-	obs_source_video_render(mps->current_media_source);
+	if (mps->actual_media) {
+		obs_source_video_render(mps->current_media_source);
+	} else {
+		obs_source_video_render(NULL);
+	}
 
 	UNUSED_PARAMETER(effect);
 }
