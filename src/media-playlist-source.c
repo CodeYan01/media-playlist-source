@@ -696,7 +696,7 @@ static void mps_activate(void *data)
 	if (!get_total_file_count(mps))
 		return;
 
-	mps->user_stopped = true;
+	mps->user_stopped = false;
 	if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_STOP_RESTART) {
 		obs_source_media_restart(mps->source);
 	} else if (mps->visibility_behavior == VISIBILITY_BEHAVIOR_PAUSE_UNPAUSE) {
