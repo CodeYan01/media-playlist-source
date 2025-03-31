@@ -70,6 +70,21 @@ function Package {
     Compress-Archive -Force @CompressArgs
     Log-Group
 
+    Log-Group "Archiving Portable ${ProductName}..."
+    tree /F "${ProjectRoot}/release/${Configuration}/${ProductName}"
+    Copy-Item -Path "${ProjectRoot}/release/${Configuration}/${ProductName}/data/locale" -Destination "${ProjectRoot}/release-portable/${Configuration}/data/obs-plugins/${ProductName}/locale" -Recurse
+    Copy-Item -Path "${ProjectRoot}/release/${Configuration}/${ProductName}/bin" -Destination "${ProjectRoot}/release-portable/${Configuration}/obs-plugins" -Recurse
+    tree /F "${ProjectRoot}/release-portable/${Configuration}"
+
+    $CompressArgs = @{
+        Path = (Get-ChildItem -Path "${ProjectRoot}/release-portable/${Configuration}" -Exclude "${OutputName}*.*")
+        CompressionLevel = 'Optimal'
+        DestinationPath = "${ProjectRoot}/release-portable/${OutputName}-Portable.zip"
+        Verbose = ($Env:CI -ne $null)
+    }
+    Compress-Archive -Force @CompressArgs
+    Log-Group
+
     if ( ( $BuildInstaller ) ) {
         $IsccFile = "${ProjectRoot}/build_${Target}/installer-Windows.generated.iss"
 
