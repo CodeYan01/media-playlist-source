@@ -215,6 +215,12 @@ static void update_media_source(void *data, bool forced)
 		mps->actual_media = mps->current_media;
 	}
 
+	// if path is same, we have to force restart it, otherwise it doesn't restart
+	bool old_is_url = !obs_data_get_bool(settings, S_FFMPEG_IS_LOCAL_FILE);
+	const char *old_path_setting = old_is_url ? S_FFMPEG_INPUT : S_FFMPEG_LOCAL_FILE;
+	const char *old_path = obs_data_get_string(settings, old_path_setting);
+	bool should_restart = strcmp(old_path, mps->actual_media->path) == 0;
+
 	//bool current_is_url =
 	//	!obs_data_get_bool(settings, S_FFMPEG_IS_LOCAL_FILE);
 	const char *path_setting = mps->actual_media->is_url ? S_FFMPEG_INPUT : S_FFMPEG_LOCAL_FILE;
@@ -231,6 +237,10 @@ static void update_media_source(void *data, bool forced)
 		obs_data_set_int(settings, S_SPEED, mps->speed);
 		obs_source_update(media_source, settings);
 		mps->user_stopped = false;
+
+		if (should_restart) {
+			obs_source_media_restart(media_source);
+		}
 	}
 
 	obs_data_release(settings);
